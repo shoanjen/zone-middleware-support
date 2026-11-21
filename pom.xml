@@ -18,16 +18,17 @@
     <modules>
         <module>zone-middleware-common</module>
         <module>zone-middleware</module>
+        <module>zone-middleware-suite</module>
     </modules>
 
     <!-- 属性配置 -->
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring.boot.version>2.7.18</spring.boot.version>
+        <spring.boot.version>3.5.6</spring.boot.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <useragent.utils.version>1.21</useragent.utils.version>
-        <mybatis.plus.version>3.5.3.1</mybatis.plus.version>
+        <mybatis.plus.version>3.5.12</mybatis.plus.version>
         <druid.version>1.2.18</druid.version>
         <lombok.version>1.18.30</lombok.version>
     </properties>
@@ -55,6 +56,31 @@
                 <artifactId>zone-middleware-log</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-redis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-database</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-http</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-security</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-suite</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- 统一 JSON：fastjson2（工作区规范，不使用 jackson） -->
             <dependency>
@@ -70,10 +96,15 @@
                 <version>${useragent.utils.version}</version>
             </dependency>
 
-            <!-- MyBatis-Plus -->
+            <!-- MyBatis-Plus（Boot 3 专用 starter；3.5.9+ 分页拦截器依赖拆分至独立 jsqlparser artifact） -->
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis.plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
                 <version>${mybatis.plus.version}</version>
             </dependency>
 

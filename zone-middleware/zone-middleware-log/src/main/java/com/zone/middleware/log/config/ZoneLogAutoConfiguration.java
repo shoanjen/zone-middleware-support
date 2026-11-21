@@ -5,7 +5,7 @@ import com.zone.middleware.log.ZoneLogSettings;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.core.env.Environment;
 
 import java.util.LinkedHashMap;
@@ -16,7 +16,7 @@ import java.util.Map;
  * 环境阶段的早期应用见 {@link ZoneLogInitEnvironmentPostProcessor}；此处幂等重放兜底，
  * 保证任何装配路径下设置一致。
  */
-@Configuration
+@AutoConfiguration
 @EnableConfigurationProperties(ZoneLogProperties.class)
 public class ZoneLogAutoConfiguration {
 
@@ -57,11 +57,15 @@ public class ZoneLogAutoConfiguration {
                 appName = environment.getProperty("spring.application.name");
             }
             ZoneLogSettings.apply(appName, properties.getLevel(),
-                    properties.isIncludeTraceId(), properties.isIncludeAppName());
+                    properties.isIncludeTraceId(), properties.isIncludeAppName(),
+                    ZoneLogEnvResolver.resolveEnv(properties.getEnv(), environment),
+                    properties.getFormat());
 
             Map<String, Object> settings = new LinkedHashMap<>();
             settings.put("appName", ZoneLogSettings.current().getAppName());
+            settings.put("env", ZoneLogSettings.current().getEnv());
             settings.put("level", ZoneLogSettings.current().getLevel());
+            settings.put("format", ZoneLogSettings.current().getFormat());
             settings.put("includeTraceId", properties.isIncludeTraceId());
             settings.put("includeAppName", properties.isIncludeAppName());
             ZoneLog.info("ZoneLogAutoConfiguration", "afterSingletonsInstantiated",

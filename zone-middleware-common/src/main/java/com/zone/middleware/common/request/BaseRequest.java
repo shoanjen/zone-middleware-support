@@ -50,6 +50,13 @@ public class BaseRequest implements Serializable {
     /** 接口请求时间戳（Epoch 毫秒；包装类型以区分「未提供」与 0） */
     private Long timestamp;
 
-    /** 接口签名（由客户端按约定算法生成，服务端校验） */
+    /**
+     * 接口签名（已废弃：签名改经请求头 {@code Zone-Access-Token} 承载）。
+     *
+     * @deprecated 签名校验的唯一来源是请求头 {@code Zone-Access-Token}（见
+     *             {@code ZoneConstants#HEADER_ACCESS_TOKEN}）；本字段仅为存量序列化
+     *             兼容保留，新代码不得以其承载签名。
+     */
+    @Deprecated
     private String sign;
 }

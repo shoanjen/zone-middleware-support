@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 
 import javax.sql.DataSource;
 import java.util.LinkedHashMap;
@@ -25,7 +25,7 @@ import java.util.Map;
  * <p>注意：必须排在 Spring/MyBatis-Plus 的相关自动配置之前（按类名字母序 com.zone 恰好靠后，
  * 故显式声明 Before），否则它们的 DataSource 缺失条件会先被评估而回退/跳过。</p>
  */
-@Configuration
+@AutoConfiguration
 @AutoConfigureBefore({
         DataSourceAutoConfiguration.class,
         DataSourceTransactionManagerAutoConfiguration.class,

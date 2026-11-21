@@ -1,5 +1,6 @@
 package com.zone.middleware.log.config;
 
+import com.zone.middleware.log.ZoneLogFormat;
 import com.zone.middleware.log.ZoneLogLevel;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -14,6 +15,9 @@ public class ZoneLogProperties {
     /** 应用名（缺省回退 spring.application.name，再回退 unknown） */
     private String appName;
 
+    /** 环境标识（缺省回退 spring.profiles.active 首段，再回退 unknown） */
+    private String env;
+
     /** 最低输出级别，默认 INFO */
     private ZoneLogLevel level = ZoneLogLevel.INFO;
 
@@ -22,4 +26,7 @@ public class ZoneLogProperties {
 
     /** 输出是否包含应用名段 */
     private boolean includeAppName = true;
+
+    /** 行格式 TEXT/JSON（非法值经枚举绑定导致启动失败），默认 TEXT */
+    private ZoneLogFormat format = ZoneLogFormat.TEXT;
 }

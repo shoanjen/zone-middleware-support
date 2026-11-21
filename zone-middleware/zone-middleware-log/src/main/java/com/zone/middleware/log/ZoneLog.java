@@ -1,10 +1,15 @@
 package com.zone.middleware.log;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Zone 生态统一日志门面（无 AOP，显式调用埋点）。
@@ -32,8 +37,16 @@ import java.util.Arrays;
  * <p>需要无条件输出堆栈时使用显式 {@code Throwable} 重载（显式重载在调用点优先匹配，
  * 如需把异常对象渲染进占位符，请传 {@code e.toString()}）。</p>
  *
- * <p>输出格式：{@code 时间 | 级别 | 应用名 | traceId | 类名.方法名 | 消息}
- * （时间与级别由底层日志框架 pattern 输出；应用名 / traceId 可配置开关）。</p>
+ * <p>行格式由 {@code zone.middleware.log.format} 选择：</p>
+ * <ul>
+ *   <li><b>TEXT</b>（默认）：段按固定顺序组成「应用名 | 环境 | traceId | reqId | 类名.方法名 | 消息」，
+ *       段组成规则为「开关开启且值非空」，值缺席的段跳过、不产生空占位
+ *       （时间与级别由底层日志框架 pattern 输出）。</li>
+ *   <li><b>JSON</b>：每条输出为完整合法的单行 JSON 对象，字段固定为
+ *       time（Epoch 毫秒）、level（级别名）、appName、env、traceId、reqId、class、method、
+ *       message、exception；time 与 level 由 ZoneLog 自产，未设置的标识字段以 null 占位，
+ *       携带异常时 exception 为完整堆栈字符串。建议底层 pattern 仅保留消息体与换行。</li>
+ * </ul>
  */
 public final class ZoneLog {
 
@@ -145,14 +158,14 @@ public final class ZoneLog {
     // ==================== 内部实现 ====================
 
     /**
-     * 统一日志出口：门槛过滤、异常剥离、格式组装并委托底层日志框架。
+     * 统一日志出口：门槛过滤、异常剥离、行组装并委托底层日志框架。
      *
-     * @param level     日志级别
-     * @param className 埋点类名
+     * @param level      日志级别
+     * @param className  埋点类名
      * @param methodName 埋点方法名
-     * @param message   消息模板
-     * @param args      占位符填充参数
-     * @param throwable 显式异常（可为 null，null 时尝试从变参末位剥离）
+     * @param message    消息模板
+     * @param args       占位符填充参数
+     * @param throwable  显式异常（可为 null，null 时尝试从变参末位剥离）
      */
     private static void doLog(ZoneLogLevel level, String className, String methodName,
                               String message, Object[] args, Throwable throwable) {
@@ -167,13 +180,137 @@ public final class ZoneLog {
         }
         Logger logger = LoggerFactory.getLogger(
                 className == null || className.isEmpty() ? ZoneLog.class.getName() : className);
-        String line = format(className, methodName, fillPlaceholders(message, args));
-        switch (level) {
-            case DEBUG -> logger.debug(line);
-            case INFO -> logger.info(line);
-            case WARN -> logger.warn(line);
-            case ERROR -> logger.error(line, throwable);
+        String line = render(level, className, methodName, fillPlaceholders(message, args), throwable);
+        boolean json = ZoneLogSettings.current().getFormat() == ZoneLogFormat.JSON;
+        if (json) {
+            // 异常已内嵌于 JSON exception 字段，不再向底层框架重复传递堆栈
+            switch (level) {
+                case DEBUG -> logger.debug(line);
+                case INFO -> logger.info(line);
+                case WARN -> logger.warn(line);
+                case ERROR -> logger.error(line);
+            }
+        } else {
+            switch (level) {
+                case DEBUG -> logger.debug(line);
+                case INFO -> logger.info(line);
+                case WARN -> logger.warn(line);
+                case ERROR -> logger.error(line, throwable);
+            }
         }
+    }
+
+    /**
+     * 按当前行格式渲染整行：TEXT 为管道分隔段，JSON 为单行 JSON 对象。
+     *
+     * @param level      日志级别
+     * @param className  埋点类名
+     * @param methodName 埋点方法名
+     * @param message    已填充占位符的消息
+     * @param throwable  显式或末位剥离的异常，可为 null
+     * @return 渲染后的整行文本
+     */
+    private static String render(ZoneLogLevel level, String className, String methodName,
+                                 String message, Throwable throwable) {
+        return ZoneLogSettings.current().getFormat() == ZoneLogFormat.JSON
+                ? renderJson(level, className, methodName, message, throwable)
+                : renderText(className, methodName, message);
+    }
+
+    /**
+     * TEXT 行组装：段按固定顺序为「开关开启且值非空」者，值缺席的段跳过、不产生空占位。
+     *
+     * @param className  埋点类名
+     * @param methodName 埋点方法名
+     * @param message    已填充占位符的消息
+     * @return 组装后的日志行文本
+     */
+    private static String renderText(String className, String methodName, String message) {
+        ZoneLogSettings settings = ZoneLogSettings.current();
+        StringBuilder sb = new StringBuilder(96);
+        if (settings.isIncludeAppName() && notEmpty(settings.getAppName())) {
+            sb.append(settings.getAppName());
+        }
+        if (notEmpty(settings.getEnv())) {
+            appendSeparator(sb).append(settings.getEnv());
+        }
+        if (settings.isIncludeTraceId()) {
+            String traceId = ZoneTraceContext.getTraceId();
+            if (notEmpty(traceId)) {
+                appendSeparator(sb).append(traceId);
+            }
+        }
+        String reqId = ZoneTraceContext.getReqId();
+        if (notEmpty(reqId)) {
+            appendSeparator(sb).append(reqId);
+        }
+        if (notEmpty(className)) {
+            appendSeparator(sb).append(className);
+            if (notEmpty(methodName)) {
+                sb.append('.').append(methodName);
+            }
+        } else if (notEmpty(methodName)) {
+            appendSeparator(sb).append(methodName);
+        }
+        if (notEmpty(message)) {
+            appendSeparator(sb).append(message);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * JSON 行组装：固定字段序 time → level → appName → env → traceId → reqId → class →
+     * method → message → exception；time 与 level 自产，未设置标识 null 占位，
+     * 携带异常时 exception 为完整堆栈字符串。序列化异常时回退 String.valueOf，日志输出永不中断。
+     *
+     * @param level      日志级别
+     * @param className  埋点类名
+     * @param methodName 埋点方法名
+     * @param message    已填充占位符的消息
+     * @param throwable  显式或末位剥离的异常，可为 null
+     * @return 单行 JSON 文本
+     */
+    private static String renderJson(ZoneLogLevel level, String className, String methodName,
+                                     String message, Throwable throwable) {
+        ZoneLogSettings settings = ZoneLogSettings.current();
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("time", System.currentTimeMillis());
+        fields.put("level", level.name());
+        fields.put("appName", settings.getAppName());
+        fields.put("env", settings.getEnv());
+        fields.put("traceId", ZoneTraceContext.getTraceId());
+        fields.put("reqId", ZoneTraceContext.getReqId());
+        fields.put("class", className);
+        fields.put("method", methodName);
+        fields.put("message", message);
+        fields.put("exception", throwable == null ? null : stackTraceOf(throwable));
+        try {
+            return JSON.toJSONString(fields, JSONWriter.Feature.WriteMapNullValue);
+        } catch (Exception fallback) {
+            return String.valueOf(fields);
+        }
+    }
+
+    /**
+     * 捕获异常完整堆栈为字符串（JSON exception 字段内容）。
+     *
+     * @param throwable 待捕获异常
+     * @return 含完整堆栈的字符串
+     */
+    private static String stackTraceOf(Throwable throwable) {
+        StringWriter sw = new StringWriter(512);
+        throwable.printStackTrace(new PrintWriter(sw, true));
+        return sw.toString();
+    }
+
+    /**
+     * 判断文本非 null 且非空串。
+     *
+     * @param text 待判断文本
+     * @return 非 null 且长度大于 0 时返回 true
+     */
+    private static boolean notEmpty(String text) {
+        return text != null && !text.isEmpty();
     }
 
     /**
@@ -265,34 +402,6 @@ public final class ZoneLog {
             }
         }
         return count;
-    }
-
-    /**
-     * 组装日志行：应用名 | traceId | 类名.方法名 | 消息（按配置开关裁剪段）。
-     *
-     * @param className  埋点类名
-     * @param methodName 埋点方法名
-     * @param message    已填充占位符的消息
-     * @return 组装后的日志行文本
-     */
-    private static String format(String className, String methodName, String message) {
-        ZoneLogSettings settings = ZoneLogSettings.current();
-        StringBuilder sb = new StringBuilder(96);
-        if (settings.isIncludeAppName()) {
-            sb.append(settings.getAppName());
-        }
-        if (settings.isIncludeTraceId()) {
-            String traceId = ZoneTraceContext.getTraceId();
-            appendSeparator(sb).append(traceId == null ? "" : traceId);
-        }
-        appendSeparator(sb).append(className == null ? "" : className);
-        if (methodName != null && !methodName.isEmpty()) {
-            sb.append('.').append(methodName);
-        }
-        if (message != null && !message.isEmpty()) {
-            appendSeparator(sb).append(message);
-        }
-        return sb.toString();
     }
 
     /**

@@ -25,6 +25,7 @@
         <module>zone-middleware-database</module>
         <module>zone-middleware-log</module>
         <module>zone-middleware-http</module>
+        <module>zone-middleware-security</module>
     </modules>
 
     <!-- 公共依赖 -->

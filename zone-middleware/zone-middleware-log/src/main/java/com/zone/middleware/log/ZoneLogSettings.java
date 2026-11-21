@@ -4,19 +4,21 @@ import lombok.Getter;
 
 /**
  * ZoneLog 运行时设置（不可变快照，整体原子替换）。
- * <p>默认：应用名 unknown、级别门槛 INFO、包含应用名与 traceId。</p>
+ * <p>默认：应用名 unknown、环境 unknown、级别门槛 INFO、包含应用名与 traceId、TEXT 行格式。</p>
  */
 @Getter
 public final class ZoneLogSettings {
 
     private static volatile ZoneLogSettings current =
-            new ZoneLogSettings("unknown", ZoneLogLevel.INFO, true, true);
+            new ZoneLogSettings("unknown", ZoneLogLevel.INFO, true, true, "unknown", ZoneLogFormat.TEXT);
 
     /** 当前生效设置快照 */
     private final String appName;
     private final ZoneLogLevel level;
     private final boolean includeTraceId;
     private final boolean includeAppName;
+    private final String env;
+    private final ZoneLogFormat format;
 
     /**
      * 私有构造（不可变快照）。
@@ -25,12 +27,17 @@ public final class ZoneLogSettings {
      * @param level          级别门槛
      * @param includeTraceId 是否输出 traceId 段
      * @param includeAppName 是否输出应用名段
+     * @param env            环境标识（unknown 兜底）
+     * @param format         行格式（TEXT 兜底）
      */
-    private ZoneLogSettings(String appName, ZoneLogLevel level, boolean includeTraceId, boolean includeAppName) {
+    private ZoneLogSettings(String appName, ZoneLogLevel level, boolean includeTraceId, boolean includeAppName,
+                            String env, ZoneLogFormat format) {
         this.appName = appName;
         this.level = level;
         this.includeTraceId = includeTraceId;
         this.includeAppName = includeAppName;
+        this.env = env;
+        this.format = format;
     }
 
     /**
@@ -40,13 +47,18 @@ public final class ZoneLogSettings {
      * @param level          级别门槛；null 回退 INFO
      * @param includeTraceId 是否输出 traceId 段
      * @param includeAppName 是否输出应用名段
+     * @param env            环境标识；null/空回退 unknown
+     * @param format         行格式；null 回退 TEXT
      */
-    public static void apply(String appName, ZoneLogLevel level, boolean includeTraceId, boolean includeAppName) {
+    public static void apply(String appName, ZoneLogLevel level, boolean includeTraceId, boolean includeAppName,
+                             String env, ZoneLogFormat format) {
         current = new ZoneLogSettings(
                 appName == null || appName.isEmpty() ? "unknown" : appName,
                 level == null ? ZoneLogLevel.INFO : level,
                 includeTraceId,
-                includeAppName);
+                includeAppName,
+                env == null || env.isEmpty() ? "unknown" : env,
+                format == null ? ZoneLogFormat.TEXT : format);
     }
 
     /**
@@ -60,6 +72,6 @@ public final class ZoneLogSettings {
 
     /** 恢复默认设置（仅测试/重置用）。 */
     static void reset() {
-        apply("unknown", ZoneLogLevel.INFO, true, true);
+        apply("unknown", ZoneLogLevel.INFO, true, true, "unknown", ZoneLogFormat.TEXT);
     }
 }

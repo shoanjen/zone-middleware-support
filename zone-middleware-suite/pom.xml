@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 父项目信息（根 POM；与 zone-middleware 聚合父模块平级，
+         避免作为子模块父级导致兄弟依赖被继承、破坏按需引入） -->
+    <parent>
+        <groupId>com.zone.middleware</groupId>
+        <artifactId>zone-middleware-support</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- 模块基本信息 -->
+    <artifactId>zone-middleware-suite</artifactId>
+    <packaging>pom</packaging>
+
+    <name>zone-middleware-suite</name>
+    <description>Zone中间件支撑二方包全量套件（一次引入全部模块：common + log + redis + database + http + security）</description>
+
+    <!-- 全量依赖：上游仅依赖本坐标即可传递全部二方包能力 -->
+    <dependencies>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-log</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-database</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-http</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-security</artifactId>
+        </dependency>
+    </dependencies>
+</project>

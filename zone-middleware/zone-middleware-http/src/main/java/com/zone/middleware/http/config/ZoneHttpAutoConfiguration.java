@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 
 import java.net.http.HttpClient;
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.List;
  * HTTP 支撑自动装配：构建 JDK HttpClient 与 ZoneHttpTemplate，
  * 收集全部 {@link ZoneAuthInterceptor} Bean 应用于模板。
  */
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(HttpClient.class)
 @EnableConfigurationProperties(ZoneHttpProperties.class)
 public class ZoneHttpAutoConfiguration {

@@ -4,6 +4,7 @@ import com.zone.middleware.log.ZoneLog;
 import com.zone.middleware.redis.ZoneRedisTemplate;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SocketOptions;
+import io.lettuce.core.api.StatefulConnection;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -11,7 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
@@ -27,7 +28,7 @@ import java.util.Map;
  * <p>必须排在 Spring 的 RedisAutoConfiguration 之前（按类名字母序 com.zone 靠后，
  * 故显式声明 Before），否则 Spring 会先用 spring.data.redis.* 默认值建连接导致 zone 配置失效。</p>
  */
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(LettuceConnectionFactory.class)
 @AutoConfigureBefore(RedisAutoConfiguration.class)
 @EnableConfigurationProperties(ZoneRedisProperties.class)
@@ -53,7 +54,7 @@ public class ZoneRedisAutoConfiguration {
         }
 
         ZoneRedisProperties.Pool pool = properties.getPool();
-        GenericObjectPoolConfig<?> poolConfig = new GenericObjectPoolConfig<>();
+        GenericObjectPoolConfig<StatefulConnection<?, ?>> poolConfig = new GenericObjectPoolConfig<>();
         poolConfig.setMaxTotal(pool.getMaxActive());
         poolConfig.setMaxIdle(pool.getMaxIdle());
         poolConfig.setMinIdle(pool.getMinIdle());
@@ -64,7 +65,7 @@ public class ZoneRedisAutoConfiguration {
                 .connectTimeout(properties.resolvedConnectTimeout())
                 .keepAlive(properties.resolvedKeepAlive())
                 .build();
-        // spring-data-redis 2.7 的 builder 不直接暴露 socketOptions，经 ClientOptions 传入
+        // spring-data-redis 的 builder 不直接暴露 socketOptions，经 ClientOptions 传入
         ClientOptions clientOptions = ClientOptions.builder()
                 .socketOptions(socketOptions)
                 .build();

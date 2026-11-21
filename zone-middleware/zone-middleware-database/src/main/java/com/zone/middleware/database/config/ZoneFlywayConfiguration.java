@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayConfigurationCustomiz
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.core.env.Environment;
 
 /**
@@ -16,7 +16,7 @@ import org.springframework.core.env.Environment;
  * 未显式配置 spring.flyway.* 时，迁移路径默认 classpath:db/migration、baselineOnMigrate 默认 true；
  * zone.middleware.db.flyway.* 可覆盖默认值；enabled=false 时不注册定制（配合排除即不迁移）。
  */
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(FluentConfiguration.class)
 @AutoConfigureAfter(ZoneDataSourceAutoConfiguration.class)
 @EnableConfigurationProperties(ZoneDatabaseProperties.class)

@@ -1,6 +1,6 @@
 package com.zone.middleware.common.util;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 客户端 IP 解析工具：按主流代理头顺序解析真实客户端 IP，无有效代理头时回退 remoteAddr。

@@ -15,13 +15,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.core.env.Environment;
 
 /**
  * MyBatis-Plus 整合：分页插件默认装配（可关），mapper-package 配置存在时自动扫描注册 Mapper。
  */
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(MybatisPlusInterceptor.class)
 @AutoConfigureAfter(ZoneDataSourceAutoConfiguration.class)
 @EnableConfigurationProperties(ZoneDatabaseProperties.class)

@@ -32,9 +32,11 @@ public class ZoneLogInitEnvironmentPostProcessor implements EnvironmentPostProce
                 appName = environment.getProperty("spring.application.name");
             }
             ZoneLogSettings.apply(appName, properties.getLevel(),
-                    properties.isIncludeTraceId(), properties.isIncludeAppName());
+                    properties.isIncludeTraceId(), properties.isIncludeAppName(),
+                    ZoneLogEnvResolver.resolveEnv(properties.getEnv(), environment),
+                    properties.getFormat());
         } catch (Exception ignored) {
-            // 绑定异常时保持默认设置，不阻塞应用启动
+            // 绑定异常时保持默认设置，不阻塞应用启动（非法 format 由 AutoConfiguration 绑定阶段失败）
         }
     }
 

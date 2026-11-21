@@ -27,7 +27,7 @@
 ## 项目速览（登记于 2026-11-11，2026-11-15 更名为 zone-middleware-support；端口权威来源：总纲第五节）
 
 - **路径**：`zone-middleware-support/`
-- **类型 / 技术栈**：Java 共享库 · Spring Boot 2.7.18 BOM（zone-middleware-common / zone-middleware：database/http/log/redis 子模块）
+- **类型 / 技术栈**：Java 共享库 · Spring Boot 3.5.6 BOM（jakarta 命名空间；zone-middleware-common / zone-middleware：database/http/log/redis/security 子模块 / zone-middleware-suite 全量套件聚合坐标）
 - **端口登记**：无（不可运行库）
 - **中间件**：—
-- **备注**：—
+- **备注**：2026-11-21 基线升级 Spring Boot 3.5.6（jakarta + AutoConfiguration.imports + MyBatis-Plus boot3 starter 3.5.12），见总纲变更记录 v1.54；同日 security 模块 `@ZoneSignCheck` 属性化（注解级时间窗覆盖 + requireLogin 强制登录 + `ZoneSecurityContext` 登录上下文门面），见 openspec change `add-zone-sign-check-login-state`

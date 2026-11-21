@@ -1,7 +1,2 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-  com.zone.middleware.database.config.ZoneDataSourceAutoConfiguration,\
-  com.zone.middleware.database.config.ZoneMyBatisPlusConfiguration,\
-  com.zone.middleware.database.config.ZoneFlywayConfiguration
-
 org.springframework.boot.env.EnvironmentPostProcessor=\
   com.zone.middleware.database.config.ZoneFlywayEnablementEnvironmentPostProcessor
