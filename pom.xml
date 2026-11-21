@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <!-- 项目基本信息 -->
-    <groupId>com.shoan</groupId>
-    <artifactId>shoan-platform-support</artifactId>
+    <groupId>com.zone.middleware</groupId>
+    <artifactId>zone-middleware-support</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    
-    <name>shoan-platform-support</name>
-    <description>Shoan平台支撑二方库</description>
+
+    <name>zone-middleware-support</name>
+    <description>Zone中间件支撑二方库</description>
 
     <!-- 子模块配置 -->
     <modules>
-        <module>shoan-common</module>
-        <module>shoan-supportor</module>
+        <module>zone-middleware-common</module>
+        <module>zone-middleware</module>
     </modules>
 
     <!-- 属性配置 -->
@@ -25,9 +25,11 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.boot.version>2.7.18</spring.boot.version>
-        <mysql.version>8.0.33</mysql.version>
-        <redis.version>2.7.18</redis.version>
-        <junit.version>4.13.2</junit.version>
+        <fastjson2.version>2.0.53</fastjson2.version>
+        <useragent.utils.version>1.21</useragent.utils.version>
+        <mybatis.plus.version>3.5.3.1</mybatis.plus.version>
+        <druid.version>1.2.18</druid.version>
+        <lombok.version>1.18.30</lombok.version>
     </properties>
 
     <!-- 依赖管理 -->
@@ -41,20 +43,45 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            
-            <!-- MySQL驱动 -->
+
+            <!-- 本项目模块 -->
             <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
-                <version>${mysql.version}</version>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-common</artifactId>
+                <version>${project.version}</version>
             </dependency>
-            
-            <!-- 测试依赖 -->
             <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
-                <version>${junit.version}</version>
-                <scope>test</scope>
+                <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-log</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- 统一 JSON：fastjson2（工作区规范，不使用 jackson） -->
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>${fastjson2.version}</version>
+            </dependency>
+
+            <!-- 浏览器 User-Agent 解析（开源工具，无传递依赖） -->
+            <dependency>
+                <groupId>eu.bitwalker</groupId>
+                <artifactId>UserAgentUtils</artifactId>
+                <version>${useragent.utils.version}</version>
+            </dependency>
+
+            <!-- MyBatis-Plus -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis.plus.version}</version>
+            </dependency>
+
+            <!-- Druid 连接池（裸依赖，手工装配） -->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid</artifactId>
+                <version>${druid.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -64,18 +91,25 @@
         <pluginManagement>
             <plugins>
                 <plugin>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-maven-plugin</artifactId>
-                    <version>${spring.boot.version}</version>
-                </plugin>
-                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.11.0</version>
                     <configuration>
                         <release>21</release>
                         <encoding>UTF-8</encoding>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.1.2</version>
                 </plugin>
             </plugins>
         </pluginManagement>

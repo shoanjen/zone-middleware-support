@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 父项目信息 -->
+    <parent>
+        <groupId>com.zone.middleware</groupId>
+        <artifactId>zone-middleware-support</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- 模块基本信息 -->
+    <artifactId>zone-middleware</artifactId>
+    <packaging>pom</packaging>
+    
+    <name>zone-middleware</name>
+    <description>Zone中间件支撑组件父模块</description>
+
+    <!-- 子模块配置 -->
+    <modules>
+        <module>zone-middleware-redis</module>
+        <module>zone-middleware-database</module>
+        <module>zone-middleware-log</module>
+        <module>zone-middleware-http</module>
+    </modules>
+
+    <!-- 公共依赖 -->
+    <dependencies>
+        <!-- 引用公共模块 -->
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- Spring Boot Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        
+        <!-- Spring Boot Configuration Processor -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- 构建配置 -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

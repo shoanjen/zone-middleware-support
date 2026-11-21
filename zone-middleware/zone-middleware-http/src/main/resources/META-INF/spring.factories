@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  com.zone.middleware.http.config.ZoneHttpAutoConfiguration

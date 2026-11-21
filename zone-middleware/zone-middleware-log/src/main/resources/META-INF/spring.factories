@@ -1,0 +1,5 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  com.zone.middleware.log.config.ZoneLogAutoConfiguration
+
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.zone.middleware.log.config.ZoneLogInitEnvironmentPostProcessor
