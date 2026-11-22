@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         properties = {
                 "zone.middleware.security.sign.secret=e2e-secret",
                 "zone.middleware.security.sign.timestamp-window=5m",
-                "zone.middleware.redis.database=13"
+                "spring.data.redis.database=13"
         })
 @AutoConfigureMockMvc
 class ZoneSecurityE2ETest {

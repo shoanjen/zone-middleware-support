@@ -1,2 +1,2 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
-  com.zone.middleware.database.config.ZoneFlywayEnablementEnvironmentPostProcessor
+  com.zone.middleware.database.config.ZoneDbPresetEnvironmentPostProcessor

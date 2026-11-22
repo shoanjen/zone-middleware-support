@@ -30,15 +30,16 @@ class ZoneDataSourceConfigurationTest {
     @Test
     void defaultShouldAssembleHikari() {
         runner.withPropertyValues(
-                        "zone.middleware.db.url=" + H2_URL,
-                        "zone.middleware.db.username=sa",
-                        "zone.middleware.db.password=")
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        "spring.datasource.password=",
+                        // ApplicationContextRunner 不执行 EEP，LOCAL 预设(10s)以显式键模拟
+                        "spring.datasource.hikari.leak-detection-threshold=10000")
                 .run(context -> {
                     DataSource dataSource = context.getBean(DataSource.class);
                     assertTrue(dataSource instanceof HikariDataSource, "默认应为 HikariCP");
                     HikariDataSource hikari = (HikariDataSource) dataSource;
                     assertEquals("zone-hikari", hikari.getPoolName());
-                    // LOCAL 默认泄漏检测 10s
                     assertEquals(10_000L, hikari.getLeakDetectionThreshold());
 
                     // 连接可用
@@ -48,11 +49,13 @@ class ZoneDataSourceConfigurationTest {
     }
 
     @Test
-    void cloudModeShouldApplyCloudPresets() {
+    void officialHikariKeysShouldApply() {
         runner.withPropertyValues(
-                        "zone.middleware.db.mode=CLOUD",
-                        "zone.middleware.db.url=" + H2_URL,
-                        "zone.middleware.db.username=sa")
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        "spring.datasource.hikari.connection-timeout=15000",
+                        "spring.datasource.hikari.keepalive-time=120000",
+                        "spring.datasource.hikari.leak-detection-threshold=0")
                 .run(context -> {
                     HikariDataSource hikari = context.getBean(HikariDataSource.class);
                     assertEquals(15_000L, hikari.getConnectionTimeout());
@@ -62,12 +65,13 @@ class ZoneDataSourceConfigurationTest {
     }
 
     @Test
-    void explicitPoolSettingsShouldWin() {
+    void explicitOfficialKeysShouldOverrideCloudPresets() {
         runner.withPropertyValues(
-                        "zone.middleware.db.url=" + H2_URL,
-                        "zone.middleware.db.username=sa",
-                        "zone.middleware.db.hikari.maximum-pool-size=3",
-                        "zone.middleware.db.hikari.leak-detection-threshold=2500")
+                        "zone.middleware.db.mode=CLOUD",
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        "spring.datasource.hikari.maximum-pool-size=3",
+                        "spring.datasource.hikari.leak-detection-threshold=2500")
                 .run(context -> {
                     HikariDataSource hikari = context.getBean(HikariDataSource.class);
                     assertEquals(3, hikari.getMaximumPoolSize());
@@ -76,11 +80,13 @@ class ZoneDataSourceConfigurationTest {
     }
 
     @Test
-    void shouldAssembleDruidWhenSelected() {
+    void shouldAssembleDruidWhenTypeConfigured() {
         runner.withPropertyValues(
-                        "zone.middleware.db.pool-type=DRUID",
-                        "zone.middleware.db.url=" + H2_URL,
-                        "zone.middleware.db.username=sa")
+                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        // ApplicationContextRunner 不执行 EEP，LOCAL 预设(5s)以显式键模拟
+                        "spring.datasource.druid.max-wait=5000")
                 .run(context -> {
                     DataSource dataSource = context.getBean(DataSource.class);
                     assertTrue(dataSource instanceof DruidDataSource, "应切换为 Druid");
@@ -95,6 +101,38 @@ class ZoneDataSourceConfigurationTest {
     }
 
     @Test
+    void druidFiltersShouldApplyWhenConfigured() {
+        runner.withPropertyValues(
+                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        "spring.datasource.druid.filters=stat,slf4j")
+                .run(context -> {
+                    DruidDataSource druid = context.getBean(DruidDataSource.class);
+                    assertEquals(2, druid.getProxyFilters().size(), "stat 与 slf4j 均应装配为 Filter 实例");
+                });
+    }
+
+    @Test
+    void unknownDruidFilterAliasShouldFailWithConfigError() {
+        runner.withPropertyValues(
+                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa",
+                        "spring.datasource.druid.filters=stat,nope")
+                .run(context -> {
+                    assertTrue(context.getStartupFailure() != null, "未注册 filter 别名应启动失败");
+                    Throwable cause = context.getStartupFailure();
+                    while (cause.getCause() != null) {
+                        cause = cause.getCause();
+                    }
+                    assertTrue(cause instanceof ZoneBusinessException, "根因应为 ZoneBusinessException: " + cause);
+                    assertEquals(SystemError.CONFIG_ERROR, ((ZoneBusinessException) cause).getError());
+                    assertTrue(cause.getMessage().contains("nope"), "错误信息应包含未注册别名: " + cause);
+                });
+    }
+
+    @Test
     void missingUrlShouldFailWithConfigError() {
         runner.run(context -> {
             assertTrue(context.getStartupFailure() != null, "缺少 URL 应启动失败");
@@ -104,21 +142,33 @@ class ZoneDataSourceConfigurationTest {
             }
             assertTrue(cause instanceof ZoneBusinessException, "根因应为 ZoneBusinessException: " + cause);
             assertEquals(SystemError.CONFIG_ERROR, ((ZoneBusinessException) cause).getError());
-            assertTrue(cause.getMessage().contains("url"));
+            assertTrue(cause.getMessage().contains("spring.datasource.url"));
         });
     }
 
     @Test
-    void invalidPoolTypeShouldFailStartup() {
+    void unsupportedDataSourceTypeShouldFailStartup() {
         runner.withPropertyValues(
-                        "zone.middleware.db.pool-type=C3P0",
-                        "zone.middleware.db.url=" + H2_URL,
-                        "zone.middleware.db.username=sa")
+                        "spring.datasource.type=org.example.not.PoolDataSource",
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa")
                 .run(context -> {
-                    assertTrue(context.getStartupFailure() != null);
+                    // 不可解析的类名在官方 DataSourceProperties 绑定阶段即失败
+                    assertTrue(context.getStartupFailure() != null, "不可解析的 type 应启动失败");
+                });
+    }
+
+    @Test
+    void resolvableButUnsupportedTypeShouldFailWithConfigError() {
+        runner.withPropertyValues(
+                        "spring.datasource.type=" + ResolvableStubDataSource.class.getName(),
+                        "spring.datasource.url=" + H2_URL,
+                        "spring.datasource.username=sa")
+                .run(context -> {
+                    assertTrue(context.getStartupFailure() != null, "不可支持的 type 应启动失败");
                     String message = context.getStartupFailure().getMessage();
-                    assertTrue(message.contains("C3P0") || containsInCause(context.getStartupFailure(), "C3P0"),
-                            "错误信息应包含非法值: " + message);
+                    assertTrue(message.contains("spring.datasource.type") || containsInCause(context.getStartupFailure(), "spring.datasource.type"),
+                            "错误信息应包含键名: " + message);
                 });
     }
 
@@ -131,5 +181,9 @@ class ZoneDataSourceConfigurationTest {
             current = current.getCause();
         }
         return false;
+    }
+
+    /** 可解析但不受支持的 DataSource 实现（用于触发装配期 CONFIG_ERROR 分支） */
+    static class ResolvableStubDataSource extends HikariDataSource {
     }
 }

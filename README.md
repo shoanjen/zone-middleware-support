@@ -98,26 +98,29 @@ mvn clean install
     <groupId>com.zone.middleware</groupId>
     <artifactId>zone-middleware-suite</artifactId>
     <version>1.0.0-SNAPSHOT</version>
+    <type>pom</type>
 </dependency>
 ```
 
-> ⚠️ `com.zone.middleware:zone-middleware` 是构建聚合父 POM，**不是接入坐标**（仅传递 common 与 spring-boot-starter）；套件入口用 `zone-middleware-suite`。完整接入手册见 [`docs/接入手册.md`](docs/接入手册.md)。
+> ⚠️ `com.zone.middleware:zone-middleware` 是构建聚合父 POM，**不是接入坐标**（仅传递 common 与 spring-boot-starter）；套件入口用 `zone-middleware-suite`，且 suite 为 `packaging=pom` 聚合坐标，**必须声明 `<type>pom</type>`**（缺省按 jar 解析会报 `Could not find artifact ...:jar:...`）。完整接入手册见 [`docs/接入手册.md`](docs/接入手册.md)。
 
 ## 配置项总表（zone.middleware.*）
 
 ### redis（zone-middleware-redis）
 
+连接配置使用 **Spring Boot 官方键 `spring.data.redis.*`**（连接工厂由官方装配）；zone 键仅剩部署模式：
+
 | 键 | 默认 | 说明 |
 |---|---|---|
-| zone.middleware.redis.mode | LOCAL | 部署模式 `LOCAL / CLOUD`；CLOUD 套用更保守预设（连接/命令超时 10s、TCP 保活开），启动日志打印模式 |
-| zone.middleware.redis.host / port | 127.0.0.1 / 6379 | 连接地址（共享本地实例直连即可，用独立 database 隔离） |
-| zone.middleware.redis.password | — | 密码（无密码留空） |
-| zone.middleware.redis.database | 0 | db index（与其他应用隔离用） |
-| zone.middleware.redis.ssl | false | 是否 TLS（云端按需开启） |
-| zone.middleware.redis.connect-timeout | LOCAL 2s / CLOUD 10s | 连接超时（显式配置覆盖预设） |
-| zone.middleware.redis.command-timeout | LOCAL 3s / CLOUD 10s | 命令超时 |
-| zone.middleware.redis.keep-alive | LOCAL false / CLOUD true | TCP 保活 |
-| zone.middleware.redis.pool.max-active / max-idle / min-idle / max-wait | 8 / 8 / 0 / 2s | 连接池参数 |
+| zone.middleware.redis.mode | LOCAL | 部署模式 `LOCAL / CLOUD`（zone 行为键）：CLOUD 预设连接/命令超时 10s、TCP 保活开；预设经官方键承载，显式配置优先 |
+| spring.data.redis.host / port | 127.0.0.1 / 6379 | 连接地址（共享本地实例直连即可，用独立 database 隔离） |
+| spring.data.redis.password | — | 密码（无密码留空） |
+| spring.data.redis.database | 0 | db index（与其他应用隔离用） |
+| spring.data.redis.ssl.enabled | false | 是否 TLS（Boot 3.1+ 对象键，云端按需开启） |
+| spring.data.redis.connect-timeout | LOCAL 预设 2s / CLOUD 预设 10s | 连接超时（显式配置覆盖预设） |
+| spring.data.redis.timeout | LOCAL 预设 3s / CLOUD 预设 10s | 命令超时 |
+| —（无官方键） | LOCAL 关 / CLOUD 开 | TCP 保活：按 zone mode 自动应用，不可单独配置 |
+| spring.data.redis.lettuce.pool.max-active / max-idle / min-idle / max-wait | 预设 8 / 8 / 0 / 2s | 连接池参数 |
 
 ```java
 @Autowired ZoneRedisTemplate redis;
@@ -131,18 +134,21 @@ redis.deleteKeys(List.of("user:1", "user:2"));
 
 ### db（zone-middleware-database）
 
+连接、池参数与迁移控制使用 **Spring Boot 官方键**（`spring.datasource.*` / `spring.flyway.*`）；zone 键仅剩部署模式与 MyBatis 整合：
+
 | 键 | 默认 | 说明 |
 |---|---|---|
-| zone.middleware.db.mode | LOCAL | `LOCAL / CLOUD`：LOCAL 默认开启 Hikari 泄漏检测(10s)便于开发；CLOUD 用更长获取超时(15s)、连接保活(120s)、关闭泄漏检测 |
-| zone.middleware.db.pool-type | HIKARI | `HIKARI / DRUID` 双连接池切换 |
-| zone.middleware.db.url / username / password / driver-class-name | —（url 必填） | 连接信息，缺失启动失败并报 CONFIG_ERROR |
-| zone.middleware.db.hikari.maximum-pool-size / minimum-idle / connection-timeout / leak-detection-threshold / keepalive-time | 预设见上 | Hikari 池参数（显式配置覆盖预设） |
-| zone.middleware.db.druid.initial-size / min-idle / max-active / max-wait / keep-alive | 2 / 2 / 8 / LOCAL 5s·CLOUD 15s / CLOUD true | Druid 池参数 |
-| zone.middleware.db.mybatis.pagination-enabled | true | MyBatis-Plus 分页插件（方言自动识别） |
-| zone.middleware.db.mybatis.mapper-package | — | 配置后自动扫描注册 Mapper |
-| zone.middleware.db.flyway.enabled | true | 关闭后不执行迁移（联动短路 spring.flyway） |
-| zone.middleware.db.flyway.locations | classpath:db/migration | 迁移脚本路径（逗号分隔） |
-| zone.middleware.db.flyway.baseline-on-migrate | false（zone 默认） | 对已有库基线化 |
+| zone.middleware.db.mode | LOCAL | `LOCAL / CLOUD` 部署模式（zone 行为键）：LOCAL 预设开启 Hikari 泄漏检测(10s)便于开发；CLOUD 预设获取超时(15s)、连接保活(120s)、关闭泄漏检测；预设经官方键承载，显式配置优先 |
+| spring.datasource.url / username / password / driver-class-name | —（url 必填） | 连接信息（官方键），缺失启动失败并报 CONFIG_ERROR |
+| spring.datasource.type | HikariCP（缺省） | 连接池切换（官方键）：填 `com.alibaba.druid.pool.DruidDataSource` 切 Druid |
+| spring.datasource.hikari.maximum-pool-size / minimum-idle / connection-timeout / leak-detection-threshold / keepalive-time | 预设见上 | Hikari 池参数（官方键，显式配置覆盖预设） |
+| spring.datasource.druid.initial-size / min-idle / max-active / max-wait / keep-alive | 2 / 2 / 8 / LOCAL 5s·CLOUD 15s / CLOUD true | Druid 池参数（官方键） |
+| spring.datasource.druid.filters | — | Druid filter 别名列表（逗号分隔，如 stat,wall,slf4j）；未注册别名启动失败（本库预校验） |
+| zone.middleware.db.mybatis.pagination-enabled | true | MyBatis-Plus 分页插件（方言自动识别，zone 行为键） |
+| zone.middleware.db.mybatis.mapper-package | — | 配置后自动扫描注册 Mapper（zone 行为键） |
+| spring.flyway.enabled | true | 迁移开关（官方键） |
+| spring.flyway.locations | 预设 classpath:db/migration | 迁移脚本路径（逗号分隔，官方键） |
+| spring.flyway.baseline-on-migrate | 预设 false | 对已有库基线化（官方键） |
 
 ```java
 // Mapper 直接继承 BaseMapper 即可；分页开箱即用
@@ -150,7 +156,8 @@ Page<ZoneUser> page = userMapper.selectPage(new Page<>(1, 10), null);
 ```
 
 说明：事务由 Spring Boot 基于 zone 装配的数据源自动生效（`@Transactional` 正常使用）；
-Druid 监控页属于应用层决策，本库不代为注册，需要时上游自行开启。
+Druid SQL 监控/防火墙用 `spring.datasource.druid.filters` 开启（如 stat,wall）；
+监控页（stat-view-servlet）属应用层决策，本库不代为注册，需要时上游自行注册（示例见接入手册 7.3 节）。
 
 ### log（zone-middleware-log）
 

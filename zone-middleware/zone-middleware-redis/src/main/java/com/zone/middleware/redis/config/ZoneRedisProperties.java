@@ -1,58 +1,25 @@
 package com.zone.middleware.redis.config;
 
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.time.Duration;
-
 /**
- * Redis 支撑配置（前缀 zone.middleware.redis）。
+ * Redis 支撑配置（前缀 zone.middleware.redis；仅保留行为键）。
  *
- * <p>部署模式：{@code mode = LOCAL | CLOUD}（默认 LOCAL）。CLOUD 模式自动套用更保守的
- * 预设值（更长超时、开启 TCP 保活），所有预设均可被显式配置逐项覆盖。</p>
+ * <p>连接配置由上游经 Spring Boot 官方键 spring.data.redis.* 提供，连接工厂由官方
+ * RedisAutoConfiguration 装配；本键面只承载部署模式 {@code mode = LOCAL | CLOUD}（默认 LOCAL）。
+ * 模式预设（LOCAL 宽松/ CLOUD 保守超时与 TCP 保活）经 ZoneRedisPresetEnvironmentPostProcessor
+ * 以官方键注入，显式配置总是优先；TCP 保活无官方键，经 LettuceClientOptionsBuilderCustomizer
+ * 按模式应用（LOCAL 关 / CLOUD 开）。</p>
  */
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "zone.middleware.redis")
 public class ZoneRedisProperties {
 
-    /** 本地模式默认连接超时 */
-    public static final Duration LOCAL_CONNECT_TIMEOUT = Duration.ofSeconds(2);
-    /** 本地模式默认命令超时 */
-    public static final Duration LOCAL_COMMAND_TIMEOUT = Duration.ofSeconds(3);
-    /** 云端模式默认连接超时 */
-    public static final Duration CLOUD_CONNECT_TIMEOUT = Duration.ofSeconds(10);
-    /** 云端模式默认命令超时 */
-    public static final Duration CLOUD_COMMAND_TIMEOUT = Duration.ofSeconds(10);
-
     /** 部署模式：LOCAL / CLOUD */
     private String mode = "LOCAL";
-
-    private String host = "127.0.0.1";
-    private int port = 6379;
-    private String password;
-    private int database = 0;
-    /** 是否启用 TLS（云端 TLS 由上游按需开启） */
-    private boolean ssl = false;
-    /** 连接超时；null = 未配置，按模式取预设 */
-    private Duration connectTimeout;
-    /** 命令超时；null = 未配置，按模式取预设 */
-    private Duration commandTimeout;
-    /** TCP 保活；null = 未配置，按模式取预设 */
-    private Boolean keepAlive;
-
-    private final Pool pool = new Pool();
-
-    /**
-     * 获取连接池配置（绑定 zone.middleware.redis.pool.*）。
-     *
-     * @return 连接池配置实例
-     */
-    public Pool getPool() {
-        return pool;
-    }
 
     /**
      * 部署模式。
@@ -62,19 +29,6 @@ public class ZoneRedisProperties {
         LOCAL,
         /** 云端部署：保守预设（更长超时、TCP 保活） */
         CLOUD
-    }
-
-    /** 连接池配置 */
-    @Data
-    public static class Pool {
-        /** 最大连接数 */
-        private int maxActive = 8;
-        /** 最大空闲连接数 */
-        private int maxIdle = 8;
-        /** 最小空闲连接数 */
-        private int minIdle = 0;
-        /** 获取连接最大等待 */
-        private Duration maxWait = Duration.ofSeconds(2);
     }
 
     /**
@@ -90,41 +44,5 @@ public class ZoneRedisProperties {
             throw new IllegalArgumentException(
                     "无效的 zone.middleware.redis.mode 配置值: " + mode + "，合法取值为 LOCAL / CLOUD");
         }
-    }
-
-    /**
-     * 获取生效连接超时：显式配置 > 模式预设。
-     *
-     * @return 生效连接超时
-     */
-    public Duration resolvedConnectTimeout() {
-        if (connectTimeout != null) {
-            return connectTimeout;
-        }
-        return parsedMode() == DeployMode.CLOUD ? CLOUD_CONNECT_TIMEOUT : LOCAL_CONNECT_TIMEOUT;
-    }
-
-    /**
-     * 获取生效命令超时：显式配置 > 模式预设。
-     *
-     * @return 生效命令超时
-     */
-    public Duration resolvedCommandTimeout() {
-        if (commandTimeout != null) {
-            return commandTimeout;
-        }
-        return parsedMode() == DeployMode.CLOUD ? CLOUD_COMMAND_TIMEOUT : LOCAL_COMMAND_TIMEOUT;
-    }
-
-    /**
-     * 获取生效 TCP 保活开关：显式配置 > 模式预设（CLOUD 默认开）。
-     *
-     * @return 是否开启 TCP 保活
-     */
-    public boolean resolvedKeepAlive() {
-        if (keepAlive != null) {
-            return keepAlive;
-        }
-        return parsedMode() == DeployMode.CLOUD;
     }
 }

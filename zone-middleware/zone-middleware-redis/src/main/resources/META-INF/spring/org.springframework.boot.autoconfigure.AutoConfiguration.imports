@@ -1,1 +1,3 @@
 com.zone.middleware.redis.config.ZoneRedisAutoConfiguration
+com.zone.middleware.redis.config.ZoneRedisKeepAliveAutoConfiguration
+com.zone.middleware.redis.config.ZoneRedisLegacyKeepAliveConfiguration

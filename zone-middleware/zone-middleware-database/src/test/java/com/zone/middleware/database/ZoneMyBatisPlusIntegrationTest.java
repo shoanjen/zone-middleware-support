@@ -28,8 +28,8 @@ class ZoneMyBatisPlusIntegrationTest {
 
     private ApplicationContextRunner withMapperPackage() {
         return runner.withPropertyValues(
-                "zone.middleware.db.url=jdbc:h2:mem:zonemybatis;DB_CLOSE_DELAY=-1",
-                "zone.middleware.db.username=sa",
+                "spring.datasource.url=jdbc:h2:mem:zonemybatis;DB_CLOSE_DELAY=-1",
+                "spring.datasource.username=sa",
                 "zone.middleware.db.mybatis.mapper-package=com.zone.middleware.database.mapper");
     }
 
