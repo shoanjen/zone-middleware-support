@@ -66,6 +66,62 @@ public class ZoneRedisTemplate {
         return fromJson(raw, type);
     }
 
+    // ==================== 计数 / 过期 / 简单互斥 ====================
+
+    /**
+     * 自增 1（整数字符串语义）。
+     *
+     * @param key 键
+     * @return 自增后的值；键不存在时从 0 起自增
+     */
+    public Long incr(String key) {
+        return redisTemplate.opsForValue().increment(key);
+    }
+
+    /**
+     * 自增指定步长（整数字符串语义）。
+     *
+     * @param key   键
+     * @param delta 步长（可为负）
+     * @return 自增后的值
+     */
+    public Long incrBy(String key, long delta) {
+        return redisTemplate.opsForValue().increment(key, delta);
+    }
+
+    /**
+     * 读取键剩余存活时间（秒）。
+     *
+     * @param key 键
+     * @return 剩余秒数；-1 表示永不过期，-2 表示键不存在
+     */
+    public Long ttl(String key) {
+        return redisTemplate.getExpire(key);
+    }
+
+    /**
+     * 设置键的存活时间（秒）。
+     *
+     * @param key     键
+     * @param seconds 存活秒数
+     * @return 是否设置成功（键不存在返回 false）
+     */
+    public Boolean expire(String key, long seconds) {
+        return redisTemplate.expire(key, Duration.ofSeconds(seconds));
+    }
+
+    /**
+     * 键不存在时写入并返回 true（简易互斥/防重入原语，适配固定 TTL 场景；已存在时不覆盖原值）。
+     *
+     * @param key   键
+     * @param value 值对象（fastjson2 序列化）
+     * @param ttl   过期时长
+     * @return true = 抢占成功；false = 键已存在
+     */
+    public Boolean setIfAbsent(String key, Object value, Duration ttl) {
+        return redisTemplate.opsForValue().setIfAbsent(key, toJson(value), ttl);
+    }
+
     /**
      * 删除单个键。
      *

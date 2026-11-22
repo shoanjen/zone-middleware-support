@@ -22,6 +22,7 @@ Zone 中间件支撑二方库（Maven 多模块项目）。为 Zone 生态的 Sp
 | zone-middleware-database | 数据源 + HikariCP/Druid 双连接池切换；MyBatis-Plus（分页插件、mapper 扫描）；Flyway 迁移；**不含 JPA** |
 | zone-middleware-http | `ZoneHttpTemplate`：JDK 21 内置 HttpClient；GET/POST、自定义鉴权、并发上限、重试、熔断 |
 | zone-middleware-security | 接口签名鉴权：`@ZoneSignCheck` 注解（可按端点覆盖时间窗、声明强制登录）+ MD5 签名（`Zone-Access-Token` 请求头）+ 时间窗与 reqId 防重放 + `ZoneSignUtils` 双端签名工具；登录令牌：`ZoneTokenService` 不透明令牌 + Redis（滑动续期/撤销/多端策略，`Zone-Auth-Token` 请求头）+ `ZoneSecurityContext` 登录上下文门面 |
+| zone-middleware-web | Web 入站可选支撑：全局异常处理器（三类异常转 ZoneResult）+ Trace 入站 Filter，均默认关、让位上游自定义组件 |
 | zone-middleware-suite | 全量套件聚合坐标（packaging=pom）：单坐标一次引入上述全部模块，适合整体接入 |
 
 ## 包结构
@@ -158,6 +159,13 @@ Page<ZoneUser> page = userMapper.selectPage(new Page<>(1, 10), null);
 说明：事务由 Spring Boot 基于 zone 装配的数据源自动生效（`@Transactional` 正常使用）；
 Druid SQL 监控/防火墙用 `spring.datasource.druid.filters` 开启（如 stat,wall）；
 监控页（stat-view-servlet）属应用层决策，本库不代为注册，需要时上游自行注册（示例见接入手册 7.3 节）。
+
+### web（zone-middleware-web，可选能力默认关）
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| zone.middleware.web.exception-advice-enabled | false | 全局异常处理器：业务异常按原码透传、参数校验转 BIZ-4001、兜底 SYS-9999 不泄露内部细节；低 Order 让位上游 advice |
+| zone.middleware.web.trace-filter-enabled | false | Trace 入站 Filter：Zone-Trace-Id 透传/生成、reqId 生成、请求结束清理、响应头回写 |
 
 ### log（zone-middleware-log）
 

@@ -78,6 +78,11 @@
             </dependency>
             <dependency>
                 <groupId>com.zone.middleware</groupId>
+                <artifactId>zone-middleware-web</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zone.middleware</groupId>
                 <artifactId>zone-middleware-suite</artifactId>
                 <version>${project.version}</version>
             </dependency>

@@ -29,7 +29,6 @@ class BaseRequestTest {
         request.setOs("android");
         request.setVersion("1.0.0");
         request.setTimestamp(1732176000000L);
-        request.setSign("a1b2c3d4e5f6");
 
         String json = JSON.toJSONString(request);
         BaseRequest parsed = JSON.parseObject(json, BaseRequest.class);
@@ -41,7 +40,15 @@ class BaseRequestTest {
         assertEquals("android", parsed.getOs());
         assertEquals("1.0.0", parsed.getVersion());
         assertEquals(1732176000000L, parsed.getTimestamp());
-        assertEquals("a1b2c3d4e5f6", parsed.getSign());
+    }
+
+    @Test
+    void legacySignFieldShouldBeIgnoredOnDeserialize() {
+        // sign 字段已移除（签名一律经 Zone-Access-Token 请求头）：旧报文残留 sign 被 fastjson2 忽略
+        BaseRequest parsed = JSON.parseObject(
+                "{\"reqId\":\"REQ-006\",\"sign\":\"legacy-hash\",\"timestamp\":1}", BaseRequest.class);
+        assertEquals("REQ-006", parsed.getReqId());
+        assertEquals(1L, parsed.getTimestamp());
     }
 
     @Test
@@ -90,6 +97,5 @@ class BaseRequestTest {
         assertNull(parsed.getPlatform());
         assertNull(parsed.getOs());
         assertNull(parsed.getTimestamp());
-        assertNull(parsed.getSign());
     }
 }

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 父项目信息 -->
+    <parent>
+        <groupId>com.zone.middleware</groupId>
+        <artifactId>zone-middleware</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- 模块基本信息 -->
+    <artifactId>zone-middleware-web</artifactId>
+    <packaging>jar</packaging>
+
+    <name>zone-middleware-web</name>
+    <description>Zone中间件Web入站支撑：全局异常处理器与Trace入站Filter（均可选自动装配，默认关，让位上游自定义组件）</description>
+
+    <!-- 依赖配置：入站 Web 能力（spring-webmvc 由上游 web 应用保证，非 web 消费方能力默认关零影响） -->
+    <dependencies>
+        <!-- Spring Boot 基础（不含 web/jackson） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- Spring MVC（RestControllerAdvice/BindException 等入站支撑；非 web 场景 @ConditionalOnClass 短路） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+
+        <!-- Jakarta Validation API（方法级校验异常 ConstraintViolationException；纯 API 无实现，
+             provider 仍由上游 starter-validation 提供，未开校验场景零传递） -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+        <!-- Servlet API（Trace Filter 请求对象，由上游 web 容器提供） -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- 公共模块 -->
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-common</artifactId>
+        </dependency>
+
+        <!-- 日志模块（ZoneLog 埋点与 ZoneTraceContext 链路绑定） -->
+        <dependency>
+            <groupId>com.zone.middleware</groupId>
+            <artifactId>zone-middleware-log</artifactId>
+        </dependency>
+
+        <!-- Lombok：编译期注解处理，optional 不传递给上游 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 测试依赖（含 spring-webmvc + mock 环境；starter-web/validation 仅测试，验证 MVC 真实校验链） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- 构建配置 -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- 保留参数名：方法级校验消息需真实参数名（Spring Boot 父 POM 默认行为，本项目自定义父 POM 需显式开启） -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

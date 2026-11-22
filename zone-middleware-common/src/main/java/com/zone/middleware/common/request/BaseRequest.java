@@ -10,7 +10,8 @@ import java.io.Serializable;
  * Zone 生态基础请求载体。
  *
  * <p>上游应用的请求 DTO 继承本类后，统一携带请求标识、平台、IP、设备、系统、版本、
- * 时间戳与签名字段，供网关 / 接口层做统一鉴权、审计与防重放校验。</p>
+ * 时间戳字段，供网关 / 接口层做统一鉴权、审计与防重放校验；签名经请求头
+ * {@code Zone-Access-Token} 承载（{@code BaseRequest} 不再包含签名字段）。</p>
  *
  * <p>{@code platform} 与 {@code os} 以字符串原样承载（透传客户端原文，未知值与大小写
  * 形态不做强转）；业务层需要规约时使用 {@link Platform#of} / {@link OsType#of} 解析：</p>
@@ -49,14 +50,4 @@ public class BaseRequest implements Serializable {
 
     /** 接口请求时间戳（Epoch 毫秒；包装类型以区分「未提供」与 0） */
     private Long timestamp;
-
-    /**
-     * 接口签名（已废弃：签名改经请求头 {@code Zone-Access-Token} 承载）。
-     *
-     * @deprecated 签名校验的唯一来源是请求头 {@code Zone-Access-Token}（见
-     *             {@code ZoneConstants#HEADER_ACCESS_TOKEN}）；本字段仅为存量序列化
-     *             兼容保留，新代码不得以其承载签名。
-     */
-    @Deprecated
-    private String sign;
 }

@@ -1,6 +1,7 @@
 package com.zone.middleware.http;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.TypeReference;
 import com.zone.middleware.common.error.SystemError;
 import com.zone.middleware.common.exception.ZoneBusinessException;
 import com.zone.middleware.http.config.ZoneHttpProperties;
@@ -117,6 +118,64 @@ public class ZoneHttpTemplate {
         return exchange(HttpMethod.POST, url, body, headers, responseType);
     }
 
+    /**
+     * 通用 GET 请求（泛型反序列化）：以 fastjson2 {@link TypeReference} 声明完整泛型类型，
+     * 适用于 {@code ZoneResult<Order>}、{@code ZoneResult<List<Order>>} 等嵌套泛型场景
+     * （data 还原为目标类型而非退化为 JSONObject）。
+     *
+     * @param url          目标地址
+     * @param responseType 泛型响应类型声明
+     * @param <T>          响应类型
+     * @return 按声明泛型反序列化的响应体
+     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     */
+    public <T> T get(String url, TypeReference<T> responseType) {
+        return get(url, null, responseType);
+    }
+
+    /**
+     * 通用 GET 请求（泛型反序列化 + 请求头）。
+     *
+     * @param url          目标地址
+     * @param headers      附加请求头，可为 null
+     * @param responseType 泛型响应类型声明
+     * @param <T>          响应类型
+     * @return 按声明泛型反序列化的响应体
+     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     */
+    public <T> T get(String url, Map<String, String> headers, TypeReference<T> responseType) {
+        return exchange(HttpMethod.GET, url, null, headers, responseType);
+    }
+
+    /**
+     * 通用 POST 请求（JSON 请求体 + 泛型反序列化）。
+     *
+     * @param url          目标地址
+     * @param body         请求体对象（fastjson2 序列化为 JSON 发送），可为 null
+     * @param responseType 泛型响应类型声明
+     * @param <T>          响应类型
+     * @return 按声明泛型反序列化的响应体
+     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     */
+    public <T> T post(String url, Object body, TypeReference<T> responseType) {
+        return post(url, body, null, responseType);
+    }
+
+    /**
+     * 通用 POST 请求（JSON 请求体 + 请求头 + 泛型反序列化）。
+     *
+     * @param url          目标地址
+     * @param body         请求体对象，可为 null
+     * @param headers      附加请求头，可为 null
+     * @param responseType 泛型响应类型声明
+     * @param <T>          响应类型
+     * @return 按声明泛型反序列化的响应体
+     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     */
+    public <T> T post(String url, Object body, Map<String, String> headers, TypeReference<T> responseType) {
+        return exchange(HttpMethod.POST, url, body, headers, responseType);
+    }
+
     // ==================== 内部实现 ====================
 
     private enum HttpMethod {
@@ -130,13 +189,13 @@ public class ZoneHttpTemplate {
      * @param url         目标地址
      * @param body        请求体（仅 POST）
      * @param headers     附加请求头
-     * @param responseType 响应目标类型
+     * @param responseType 响应目标类型（Class 或 TypeReference）
      * @param <T>         响应类型
      * @return 反序列化后的响应体
      * @throws ZoneBusinessException 熔断开启（CIRCUIT_OPEN）或底层失败（HTTP_ERROR）
      */
     private <T> T exchange(HttpMethod method, String url, Object body,
-                           Map<String, String> headers, Class<T> responseType) {
+                           Map<String, String> headers, Object responseType) {
         if (circuitBreaker != null && !circuitBreaker.tryAcquire()) {
             ZoneLog.warn("ZoneHttpTemplate", "exchange", "熔断开启，请求快速失败: {}", url);
             throw new ZoneBusinessException(SystemError.CIRCUIT_OPEN, "熔断开启，请求快速失败: " + url);
@@ -162,13 +221,13 @@ public class ZoneHttpTemplate {
      * @param url         目标地址
      * @param body        请求体
      * @param headers     附加请求头
-     * @param responseType 响应目标类型
+     * @param responseType 响应目标类型（Class 或 TypeReference）
      * @param <T>         响应类型
      * @return 反序列化后的响应体
      * @throws ZoneBusinessException 重试耗尽、IO 异常或被中断（HTTP_ERROR）
      */
     private <T> T executeWithRetry(HttpMethod method, String url, Object body,
-                                   Map<String, String> headers, Class<T> responseType) {
+                                   Map<String, String> headers, Object responseType) {
         ZoneHttpProperties.Retry retry = properties.getRetry();
         int attempts = retry.isEnabled() ? Math.max(1, retry.getMaxAttempts()) : 1;
         int lastStatus = -1;
@@ -253,18 +312,29 @@ public class ZoneHttpTemplate {
     }
 
     /**
-     * 解析响应体：String 原样返回，其他类型 fastjson2 反序列化。
+     * 解析响应体：String 原样返回，其他类型按 Class 或 TypeReference 由 fastjson2 反序列化
+     * （TypeReference 支持完整泛型树，data 不退化为 JSONObject）。
      *
      * @param body        响应体字符串
-     * @param responseType 目标类型
+     * @param responseType 目标类型（Class 或 TypeReference）
      * @param <T>         目标类型
      * @return 解析后的对象（空响应体返回 null）
      */
-    private <T> T parseBody(String body, Class<T> responseType) {
-        if (body == null || body.isEmpty() || responseType == String.class) {
-            return responseType.cast(body);
+    @SuppressWarnings("unchecked")
+    private <T> T parseBody(String body, Object responseType) {
+        if (responseType instanceof Class<?> clazz && clazz == String.class) {
+            return (T) body;
         }
-        return JSON.parseObject(body, responseType);
+        if (body == null || body.isEmpty()) {
+            return null;
+        }
+        if (responseType instanceof Class<?> clazz) {
+            return (T) JSON.parseObject(body, clazz);
+        }
+        if (responseType instanceof TypeReference<?> typeReference) {
+            return (T) JSON.parseObject(body, typeReference);
+        }
+        throw new IllegalArgumentException("不支持的响应类型声明: " + responseType.getClass().getName());
     }
 
     /**
