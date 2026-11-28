@@ -2,13 +2,13 @@ package com.zone.middleware.database;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.zone.middleware.database.config.ZoneDataSourceAutoConfiguration;
 import com.zone.middleware.database.config.ZoneMyBatisPlusConfiguration;
 import com.zone.middleware.database.mapper.ZoneUser;
 import com.zone.middleware.database.mapper.ZoneUserMapper;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +25,7 @@ class ZoneMyBatisPlusIntegrationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    ZoneDataSourceAutoConfiguration.class,
+                    DataSourceAutoConfiguration.class,
                     ZoneMyBatisPlusConfiguration.class,
                     com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration.class))
             .withUserConfiguration(MapperScanConfig.class);

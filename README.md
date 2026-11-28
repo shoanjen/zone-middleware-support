@@ -5,7 +5,7 @@ Zone 中间件支撑二方库（Maven 多模块项目）。为 Zone 生态的 Sp
 ## 项目概览
 - GroupId: com.zone.middleware
 - ArtifactId: zone-middleware-support
-- Version: 1.0.0-SNAPSHOT
+- Version: 1.0.1-SNAPSHOT
 - Packaging: pom（父项目）
 - JDK 要求: 21（只支撑 21 及以上，不做低版本兼容）
 - Spring Boot: 3.5.6 BOM（jakarta 命名空间；消费方需 Boot 3.1+）
@@ -19,7 +19,7 @@ Zone 中间件支撑二方库（Maven 多模块项目）。为 Zone 生态的 Sp
 | zone-middleware-common | `ZoneResult` 统一返回体（成功码 200）；`ZoneError` 错误体系（`SystemError`/`BusinessError`）+ `ZoneBusinessException`；`ZoneConstants` 顶层设计常量接口（上层派生领域常量，内置 `Zone-Access-Token`/`Zone-Trace-Id` 请求头 Key，鉴权/日志二方包预留）；工具类：`JsonUtil`（生态统一 JSON）、`ZoneIpUtils`（客户端 IP）、`ZoneBrowserUtils`（浏览器指纹）、`ZoneRandomUtils`（分段随机字符串）；`BaseRequest` 基础请求载体 + `Platform`/`OsType` 枚举 |
 | zone-middleware-log | `ZoneLog` 统一日志静态门面（{} 占位符 + Object... 变参，无 AOP；TEXT/JSON 双行格式），`ZoneTraceContext` traceId + reqId 双标识线程上下文，env 环境标识；库内各模块埋点统一使用 ZoneLog |
 | zone-middleware-redis | `ZoneRedisTemplate`：String/Hash/List/Set/ZSet 增删改查 + 批量；连接/池参数全由官方键承载；Lettuce 连接池按官方键启用 |
-| zone-middleware-database | 数据源 + HikariCP/Druid 双连接池切换；MyBatis-Plus 分页插件（Mapper 扫描走官方 @Mapper/@MapperScan）；Flyway 迁移；**不含 JPA** |
+| zone-middleware-database | 数据源装配回归官方（HikariCP 缺省由 Boot 原生装配，Druid 声明官方 starter 即启用）；MyBatis-Plus 分页插件（Mapper 扫描走官方 @Mapper/@MapperScan）；Flyway 迁移；Druid filter 别名后置校验；**不含 JPA** |
 | zone-middleware-http | `ZoneHttpTemplate`：JDK 21 内置 HttpClient；GET/POST、自定义鉴权、并发上限、重试（熔断已移除，建议 Sentinel） |
 | zone-middleware-security | 接口签名鉴权：`@ZoneSignCheck` 注解（可按端点覆盖时间窗、声明强制登录）+ MD5 签名（`Zone-Access-Token` 请求头）+ 时间窗与 reqId 防重放 + `ZoneSignUtils` 双端签名工具；登录令牌：`ZoneTokenService` 不透明令牌 + Redis（滑动续期/撤销/多端策略，`Zone-Auth-Token` 请求头）+ `ZoneSecurityContext` 登录上下文门面 |
 | zone-middleware-web | Web 入站可选支撑：全局异常处理器（三类异常转 ZoneResult）+ Trace 入站 Filter，均默认关、让位上游自定义组件 |
@@ -45,9 +45,8 @@ com.zone.middleware
 │   ├── service    ZoneRedisTemplate
 │   └── config      ZoneRedisAutoConfiguration
 ├── database                               # zone-middleware-database
-│   └── config      ZoneDataSourceAutoConfiguration
+│   └── config      ZoneDruidFilterValidationConfiguration
 │                   / ZoneMyBatisPlusConfiguration / ZoneFlywayConfiguration
-│                   / ZoneOfficialDataSourceProperties
 ├── http                                   # zone-middleware-http
 │   ├── client     ZoneHttpTemplate
 │   ├── config      ZoneHttpProperties / ZoneHttpAutoConfiguration
@@ -87,19 +86,19 @@ mvn clean install
 <dependency>
     <groupId>com.zone.middleware</groupId>
     <artifactId>zone-middleware-common</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1-SNAPSHOT</version>
 </dependency>
 <dependency>
     <groupId>com.zone.middleware</groupId>
     <artifactId>zone-middleware-redis</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1-SNAPSHOT</version>
 </dependency>
 
-<!-- 方式二：套件引入（一次引入 common + log + redis + database + http + security） -->
+<!-- 方式二：套件引入（一次引入 common + log + redis + database + http + security + web） -->
 <dependency>
     <groupId>com.zone.middleware</groupId>
     <artifactId>zone-middleware-suite</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
@@ -138,11 +137,12 @@ redis.deleteKeys(List.of("user:1", "user:2"));
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| spring.datasource.url / username / password / driver-class-name | —（url 必填） | 连接信息（官方键），缺失启动失败并报 CONFIG_ERROR |
-| spring.datasource.type | HikariCP（缺省） | 连接池切换（官方键）：填 `com.alibaba.druid.pool.DruidDataSource` 切 Druid |
-| spring.datasource.hikari.maximum-pool-size / minimum-idle / connection-timeout / leak-detection-threshold / keepalive-time | 官方默认 | Hikari 池参数（官方键；生产建议显式配置，如 connection-timeout 15s、keepalive-time 120000） |
-| spring.datasource.druid.initial-size / min-idle / max-active / max-wait / keep-alive | 官方默认 | Druid 池参数（官方键；生产建议显式配置，如 initial-size 2、max-wait 15000、keep-alive true） |
-| spring.datasource.druid.filters | — | Druid filter 别名列表（逗号分隔，如 stat,wall,slf4j）；未注册别名启动失败（本库预校验） |
+| spring.datasource.url / username / password / driver-class-name | — | 连接信息（官方键）；url 缺失回归 Boot 原生语义（类路径含内嵌驱动时自动装配内嵌库，否则 Hikari 首次获取连接报错） |
+| （切池方式）依赖声明 | HikariCP 缺省 | 声明 `com.alibaba:druid-spring-boot-3-starter` 依赖即切 Druid（官方 starter 装配）；`spring.datasource.type` 不再作为本库切池开关 |
+| spring.datasource.hikari.* | 官方默认 | Hikari 池参数由 Boot 原生全量绑定（官方键；生产建议显式配置，如 connection-timeout 15s、maximum-pool-size 10） |
+| spring.datasource.druid.initial-size / min-idle / max-active / max-wait / keep-alive 等 | 官方默认 | Druid 池参数由官方 starter 绑定（官方键，前缀与历史配置兼容；生产建议显式配置，如 initial-size 2、max-wait 15000） |
+| spring.datasource.druid.filters | — | Druid filter 别名列表（逗号分隔，如 stat,wall,slf4j）；未注册别名装配后启动失败（本库后置校验）；细粒度键 `spring.datasource.druid.filter.<name>.enabled` 由 starter 提供 |
+| spring.datasource.druid.stat-view-servlet.enabled | false | Druid 监控页（官方 starter 提供，如需开启由上游配置并自行加固访问） |
 | spring.flyway.enabled | true | 迁移开关（官方键） |
 | spring.flyway.locations | 预设 classpath:db/migration | 迁移脚本路径（逗号分隔，官方键） |
 | spring.flyway.baseline-on-migrate | 预设 false | 对已有库基线化（官方键） |
@@ -152,9 +152,9 @@ redis.deleteKeys(List.of("user:1", "user:2"));
 Page<ZoneUser> page = userMapper.selectPage(new Page<>(1, 10), null);
 ```
 
-说明：事务由 Spring Boot 基于 zone 装配的数据源自动生效（`@Transactional` 正常使用）；
-Druid SQL 监控/防火墙用 `spring.datasource.druid.filters` 开启（如 stat,wall）；
-监控页（stat-view-servlet）属应用层决策，本库不代为注册，需要时上游自行注册（示例见接入手册 7.3 节）。
+说明：事务由 Spring Boot 基于官方装配的数据源自动生效（`@Transactional` 正常使用）；
+Druid SQL 监控/防火墙用 `spring.datasource.druid.filters` 或 `filter.<name>.enabled` 细粒度键开启（如 stat,wall）；
+监控页（stat-view-servlet）由官方 starter 提供，`spring.datasource.druid.stat-view-servlet.enabled=true` 即启用，属应用层决策需自行加固访问（示例见接入手册 database 章节）。
 
 ### web（zone-middleware-web，可选能力默认关）
 

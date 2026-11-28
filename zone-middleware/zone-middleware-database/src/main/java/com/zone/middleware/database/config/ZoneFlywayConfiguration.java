@@ -2,7 +2,6 @@ package com.zone.middleware.database.config;
 
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.flyway.FlywayConfigurationCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +14,6 @@ import org.springframework.core.env.Environment;
  */
 @AutoConfiguration
 @ConditionalOnClass(FluentConfiguration.class)
-@AutoConfigureAfter(ZoneDataSourceAutoConfiguration.class)
 public class ZoneFlywayConfiguration {
 
     private static final String DEFAULT_LOCATIONS = "classpath:db/migration";

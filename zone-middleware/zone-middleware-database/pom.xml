@@ -17,7 +17,7 @@
     <packaging>jar</packaging>
 
     <name>zone-middleware-database</name>
-    <description>Zone中间件数据库支撑组件：数据源与连接池（HikariCP/Druid可切换）、MyBatis-Plus与Flyway整合（不含JPA）</description>
+    <description>Zone中间件数据库支撑组件：MyBatis-Plus与Flyway整合、Druid filter后置校验（数据源装配回归Boot原生HikariCP与官方Druid starter，不含JPA）</description>
 
     <!-- 依赖配置 -->
     <dependencies>
@@ -33,10 +33,12 @@
             <artifactId>HikariCP</artifactId>
         </dependency>
 
-        <!-- Druid 连接池（裸依赖，手工装配） -->
+        <!-- Druid 连接池（官方 Boot3 starter，optional 不传递给上游：filter 后置校验编译所需，
+             上游声明该 starter 即启用 Druid 并随之激活校验，不声明则 @ConditionalOnClass 短路） -->
         <dependency>
             <groupId>com.alibaba</groupId>
-            <artifactId>druid</artifactId>
+            <artifactId>druid-spring-boot-3-starter</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- MyBatis-Plus（Boot 3 专用 starter） -->

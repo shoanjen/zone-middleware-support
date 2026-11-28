@@ -1,10 +1,10 @@
 package com.zone.middleware.database;
 
-import com.zone.middleware.database.config.ZoneDataSourceAutoConfiguration;
 import com.zone.middleware.database.config.ZoneFlywayConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -18,7 +18,7 @@ class ZoneFlywayIntegrationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    ZoneDataSourceAutoConfiguration.class,
+                    DataSourceAutoConfiguration.class,
                     ZoneFlywayConfiguration.class,
                     FlywayAutoConfiguration.class));
 

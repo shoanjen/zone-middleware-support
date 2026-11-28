@@ -25,14 +25,16 @@
     <properties>
         <!-- 全局版本唯一源（CI-friendly）：升版本只改此处，全部子模块（含 suite）自动跟随；
              依赖 flatten-maven-plugin 将 ${revision} 解析为字面量后安装，下游方可正常解析 -->
-        <revision>1.0.0-SNAPSHOT</revision>
+        <revision>1.0.1-SNAPSHOT</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.boot.version>3.5.6</spring.boot.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <useragent.utils.version>1.21</useragent.utils.version>
         <mybatis.plus.version>3.5.12</mybatis.plus.version>
-        <druid.version>1.2.18</druid.version>
+        <druid.spring.boot.starter.version>1.2.25</druid.spring.boot.starter.version>
+        <nacos.client.version>3.3.0</nacos.client.version>
+        <dubbo.version>3.3.7</dubbo.version>
         <lombok.version>1.18.30</lombok.version>
     </properties>
 
@@ -116,11 +118,29 @@
                 <version>${mybatis.plus.version}</version>
             </dependency>
 
-            <!-- Druid 连接池（裸依赖，手工装配） -->
+            <!-- Druid 连接池（官方 Boot3 starter：声明依赖即由 starter 装配，本库不再手工装配） -->
             <dependency>
                 <groupId>com.alibaba</groupId>
-                <artifactId>druid</artifactId>
-                <version>${druid.version}</version>
+                <artifactId>druid-spring-boot-3-starter</artifactId>
+                <version>${druid.spring.boot.starter.version}</version>
+            </dependency>
+
+            <!-- Nacos 客户端（裸 SDK 版本基线，对齐 Nacos Server 3.x；dependencyManagement 不随依赖
+                 传递，下游接入仍需自声明坐标，本条目为库内单源与团队版本基线） -->
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-client</artifactId>
+                <version>${nacos.client.version}</version>
+            </dependency>
+
+            <!-- Dubbo BOM（一份管住 dubbo-spring-boot-starter / dubbo-nacos-spring-boot-starter 等
+                 全家坐标；传递语义同上） -->
+            <dependency>
+                <groupId>org.apache.dubbo</groupId>
+                <artifactId>dubbo-bom</artifactId>
+                <version>${dubbo.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

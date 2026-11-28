@@ -1,98 +1,96 @@
 package com.zone.middleware.database;
 
 import com.alibaba.druid.pool.DruidDataSource;
+import com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceAutoConfigure;
 import com.zone.middleware.common.error.SystemError;
 import com.zone.middleware.common.exception.ZoneBusinessException;
-import com.zone.middleware.database.config.ZoneDataSourceAutoConfiguration;
+import com.zone.middleware.database.config.ZoneDruidFilterValidationConfiguration;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * 数据源装配测试（装配所有权回归官方后的三路验证）：
+ * HikariCP 由 Boot 原生 DataSourceAutoConfiguration 装配；Druid 由官方 starter
+ * DruidDataSourceAutoConfigure 装配；filter 别名由 ZoneDruidFilterValidationConfiguration
+ * 在数据源装配完成后快速失败校验。
+ */
 class ZoneDataSourceConfigurationTest {
 
     private static final String H2_URL = "jdbc:h2:mem:zonedb;DB_CLOSE_DELAY=-1";
 
-    private final ApplicationContextRunner runner = new ApplicationContextRunner()
+    /** Boot 原生 Hikari 路径：仅注册官方数据源自动配置（测试类路径虽含 druid starter，不注册即不生效） */
+    private final ApplicationContextRunner hikariRunner = new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class));
+
+    /** 官方 starter Druid 路径：starter 自动配置优先于 DataSourceAutoConfiguration（@AutoConfigureBefore） */
+    private final ApplicationContextRunner druidRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    ZoneDataSourceAutoConfiguration.class,
-                    DataSourceTransactionManagerAutoConfiguration.class,
+                    ZoneDruidFilterValidationConfiguration.class,
+                    DruidDataSourceAutoConfigure.class,
                     DataSourceAutoConfiguration.class));
 
     @Test
-    void defaultShouldAssembleHikari() {
-        runner.withPropertyValues(
+    void bootNativeShouldAssembleHikariAndBindOfficialKeys() {
+        hikariRunner.withPropertyValues(
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
                         "spring.datasource.password=",
-                        // ApplicationContextRunner 不执行 EEP，LOCAL 预设(10s)以显式键模拟
-                        "spring.datasource.hikari.leak-detection-threshold=10000")
+                        "spring.datasource.hikari.maximum-pool-size=3",
+                        "spring.datasource.hikari.leak-detection-threshold=2500")
                 .run(context -> {
                     DataSource dataSource = context.getBean(DataSource.class);
-                    assertTrue(dataSource instanceof HikariDataSource, "默认应为 HikariCP");
+                    assertTrue(dataSource instanceof HikariDataSource, "缺省应为 Boot 原生 HikariCP");
                     HikariDataSource hikari = (HikariDataSource) dataSource;
-                    assertEquals("zone-hikari", hikari.getPoolName());
-                    assertEquals(10_000L, hikari.getLeakDetectionThreshold());
+                    assertEquals(3, hikari.getMaximumPoolSize(), "官方键 hikari.* 应全量绑定");
+                    assertEquals(2_500L, hikari.getLeakDetectionThreshold());
 
-                    // 连接可用
                     Integer one = new JdbcTemplate(dataSource).queryForObject("SELECT 1", Integer.class);
                     assertEquals(1, one);
                 });
     }
 
     @Test
-    void officialHikariKeysShouldApply() {
-        runner.withPropertyValues(
-                        "spring.datasource.url=" + H2_URL,
-                        "spring.datasource.username=sa",
-                        "spring.datasource.hikari.connection-timeout=15000",
-                        "spring.datasource.hikari.keepalive-time=120000",
-                        "spring.datasource.hikari.leak-detection-threshold=0")
-                .run(context -> {
-                    HikariDataSource hikari = context.getBean(HikariDataSource.class);
-                    assertEquals(15_000L, hikari.getConnectionTimeout());
-                    assertEquals(0L, hikari.getLeakDetectionThreshold());
-                    assertEquals(120_000L, hikari.getKeepaliveTime());
-                });
+    void hikariMissingUrlShouldFollowBootNativeSemantics() {
+        // Boot 原生语义：url 缺失时 DataSourceProperties 按类路径检测自动填充内嵌 H2 内存库
+        // （仍以 HikariDataSource 形态承载）；无内嵌驱动场景下 Hikari 首连接报错，属 Boot 官方行为
+        hikariRunner.run(context -> {
+            assertTrue(context.getStartupFailure() == null,
+                    "Boot 原生语义：url 缺失不再由本库阻断启动");
+            DataSource dataSource = context.getBean(DataSource.class);
+            assertTrue(dataSource instanceof HikariDataSource,
+                    "url 缺失时仍应装配 HikariCP（由 Boot 自动填充内嵌库地址）");
+            String jdbcUrl = ((HikariDataSource) dataSource).getJdbcUrl();
+            assertNotNull(jdbcUrl, "Boot 应自动填充内嵌库 url");
+            assertTrue(jdbcUrl.startsWith("jdbc:h2:mem:"), "自动填充地址应为内嵌 H2: " + jdbcUrl);
+            Integer one = new JdbcTemplate(dataSource).queryForObject("SELECT 1", Integer.class);
+            assertEquals(1, one);
+        });
     }
 
     @Test
-    void explicitOfficialKeysShouldApply() {
-        runner.withPropertyValues(
+    void druidStarterShouldAssembleDruidAndBindOfficialKeys() {
+        druidRunner.withPropertyValues(
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
-                        "spring.datasource.hikari.maximum-pool-size=3",
-                        "spring.datasource.hikari.leak-detection-threshold=2500")
-                .run(context -> {
-                    HikariDataSource hikari = context.getBean(HikariDataSource.class);
-                    assertEquals(3, hikari.getMaximumPoolSize());
-                    assertEquals(2_500L, hikari.getLeakDetectionThreshold());
-                });
-    }
-
-    @Test
-    void shouldAssembleDruidWhenTypeConfigured() {
-        runner.withPropertyValues(
-                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
-                        "spring.datasource.url=" + H2_URL,
-                        "spring.datasource.username=sa",
-                        // 未配 max-wait 等项时回归 Druid 官方默认；此处显式验证官方键生效
-                        "spring.datasource.druid.max-wait=5000")
+                        // 前缀 spring.datasource.druid.* 与历史配置兼容，由 starter 绑定生效
+                        "spring.datasource.druid.max-wait=5000",
+                        "spring.datasource.druid.initial-size=1")
                 .run(context -> {
                     DataSource dataSource = context.getBean(DataSource.class);
-                    assertTrue(dataSource instanceof DruidDataSource, "应切换为 Druid");
+                    assertTrue(dataSource instanceof DruidDataSource, "声明 starter 应装配为 Druid");
                     DruidDataSource druid = (DruidDataSource) dataSource;
-                    assertEquals("zone-druid", druid.getName());
-                    assertEquals(5_000L, druid.getMaxWait());
-                    assertEquals("SELECT 1", druid.getValidationQuery());
+                    assertEquals(5_000L, druid.getMaxWait(), "官方键 druid.* 应由 starter 绑定");
+                    assertEquals(1, druid.getInitialSize());
 
                     Integer one = new JdbcTemplate(dataSource).queryForObject("SELECT 1", Integer.class);
                     assertEquals(1, one);
@@ -101,8 +99,7 @@ class ZoneDataSourceConfigurationTest {
 
     @Test
     void druidFiltersShouldApplyWhenConfigured() {
-        runner.withPropertyValues(
-                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
+        druidRunner.withPropertyValues(
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
                         "spring.datasource.druid.filters=stat,slf4j")
@@ -114,13 +111,12 @@ class ZoneDataSourceConfigurationTest {
 
     @Test
     void unknownDruidFilterAliasShouldFailWithConfigError() {
-        runner.withPropertyValues(
-                        "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
+        druidRunner.withPropertyValues(
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
                         "spring.datasource.druid.filters=stat,nope")
                 .run(context -> {
-                    assertTrue(context.getStartupFailure() != null, "未注册 filter 别名应启动失败");
+                    assertNotNull(context.getStartupFailure(), "未注册 filter 别名应在装配后快速失败");
                     Throwable cause = context.getStartupFailure();
                     while (cause.getCause() != null) {
                         cause = cause.getCause();
@@ -128,46 +124,6 @@ class ZoneDataSourceConfigurationTest {
                     assertTrue(cause instanceof ZoneBusinessException, "根因应为 ZoneBusinessException: " + cause);
                     assertEquals(SystemError.CONFIG_ERROR, ((ZoneBusinessException) cause).getError());
                     assertTrue(cause.getMessage().contains("nope"), "错误信息应包含未注册别名: " + cause);
-                });
-    }
-
-    @Test
-    void missingUrlShouldFailWithConfigError() {
-        runner.run(context -> {
-            assertTrue(context.getStartupFailure() != null, "缺少 URL 应启动失败");
-            Throwable cause = context.getStartupFailure();
-            while (cause.getCause() != null) {
-                cause = cause.getCause();
-            }
-            assertTrue(cause instanceof ZoneBusinessException, "根因应为 ZoneBusinessException: " + cause);
-            assertEquals(SystemError.CONFIG_ERROR, ((ZoneBusinessException) cause).getError());
-            assertTrue(cause.getMessage().contains("spring.datasource.url"));
-        });
-    }
-
-    @Test
-    void unsupportedDataSourceTypeShouldFailStartup() {
-        runner.withPropertyValues(
-                        "spring.datasource.type=org.example.not.PoolDataSource",
-                        "spring.datasource.url=" + H2_URL,
-                        "spring.datasource.username=sa")
-                .run(context -> {
-                    // 不可解析的类名在官方 DataSourceProperties 绑定阶段即失败
-                    assertTrue(context.getStartupFailure() != null, "不可解析的 type 应启动失败");
-                });
-    }
-
-    @Test
-    void resolvableButUnsupportedTypeShouldFailWithConfigError() {
-        runner.withPropertyValues(
-                        "spring.datasource.type=" + ResolvableStubDataSource.class.getName(),
-                        "spring.datasource.url=" + H2_URL,
-                        "spring.datasource.username=sa")
-                .run(context -> {
-                    assertTrue(context.getStartupFailure() != null, "不可支持的 type 应启动失败");
-                    String message = context.getStartupFailure().getMessage();
-                    assertTrue(message.contains("spring.datasource.type") || containsInCause(context.getStartupFailure(), "spring.datasource.type"),
-                            "错误信息应包含键名: " + message);
                 });
     }
 
@@ -180,9 +136,5 @@ class ZoneDataSourceConfigurationTest {
             current = current.getCause();
         }
         return false;
-    }
-
-    /** 可解析但不受支持的 DataSource 实现（用于触发装配期 CONFIG_ERROR 分支） */
-    static class ResolvableStubDataSource extends HikariDataSource {
     }
 }
