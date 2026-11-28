@@ -4,7 +4,7 @@ import java.net.http.HttpRequest;
 
 /**
  * 自定义鉴权扩展点：上游实现并注册为 Spring Bean 后，
- * {@link com.zone.middleware.http.ZoneHttpTemplate} 发起的每个请求都会经过该处理（如注入认证头）。
+ * {@link com.zone.middleware.http.client.ZoneHttpTemplate} 发起的每个请求都会经过该处理（如注入认证头）。
  */
 @FunctionalInterface
 public interface ZoneAuthInterceptor {

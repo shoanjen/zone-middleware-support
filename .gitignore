@@ -42,3 +42,6 @@ build/
 CLAUDE.md
 CODEBUDDY.md
 .zcode/
+
+### Maven flatten 插件工作产物（CI-friendly 版本）###
+.flattened-pom.xml

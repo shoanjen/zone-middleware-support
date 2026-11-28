@@ -2,6 +2,8 @@ package com.zone.middleware.security.web;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.zone.middleware.common.constant.ZoneConstants;
+import com.zone.middleware.log.ZoneLogLevel;
+import com.zone.middleware.log.ZoneLogSettings;
 import com.zone.middleware.security.annotation.ZoneSignCheck;
 import com.zone.middleware.security.config.ZoneSecurityProperties;
 import com.zone.middleware.security.context.ZoneSecurityContext;
@@ -200,6 +202,51 @@ class ZoneSignCheckInterceptorTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         assertFalse(interceptor.preHandle(request, response, handler));
         assertUnauthorized(response);
+    }
+
+    @Test
+    void shouldLogSignatureComparisonElementsOnMismatch() throws Exception {
+        // debug 门槛 + ListAppender 捕获签名比对三要素埋点
+        ZoneLogSettings.apply("test-app", ZoneLogLevel.DEBUG, false, false, "test", null);
+        ch.qos.logback.classic.Logger logbackLogger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("ZoneSignCheckInterceptor");
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logbackLogger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        logbackLogger.addAppender(appender);
+        try {
+            String wrongSign = "ffffffffffffffffffffffffffffffff";
+            MockHttpServletRequest request = webGet("r-log");
+            request.addHeader(ZoneConstants.HEADER_ACCESS_TOKEN, wrongSign);
+            HandlerMethod handler = handler(MethodAnnotatedController.class, "annotated");
+
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            assertFalse(interceptor.preHandle(request, response, handler));
+            assertUnauthorized(response);
+
+            // 拼接全部日志消息，断言三要素：传入 token、服务端参与参数、服务端计算签名
+            StringBuilder allMessages = new StringBuilder();
+            appender.list.forEach(event -> allMessages.append(event.getFormattedMessage()).append('\n'));
+            String logs = allMessages.toString();
+
+            assertTrue(logs.contains(wrongSign), "应包含传入的 zone-access-token 值: " + logs);
+            assertTrue(logs.contains("\"reqId\":\"r-log\""),
+                    "应包含服务端参与计算签名的请求参数: " + logs);
+            assertTrue(logs.contains("服务端计算签名"), "应包含计算结果标注: " + logs);
+
+            // 服务端计算签名值可独立复算验证
+            Map<String, Object> expectedParams = new LinkedHashMap<>();
+            expectedParams.put("reqId", "r-log");
+            expectedParams.put("timestamp", request.getParameter("timestamp"));
+            expectedParams.put("platform", "web");
+            String expectedSign = ZoneSignUtils.sign(expectedParams, SECRET);
+            assertTrue(logs.contains(expectedSign), "应包含服务端计算出的签名值: " + logs);
+        } finally {
+            logbackLogger.detachAppender(appender);
+            // 恢复默认设置（reset 为包私有，跨包以等价 apply 还原）
+            ZoneLogSettings.apply("unknown", ZoneLogLevel.INFO, true, true, "unknown", null);
+        }
     }
 
     @Test

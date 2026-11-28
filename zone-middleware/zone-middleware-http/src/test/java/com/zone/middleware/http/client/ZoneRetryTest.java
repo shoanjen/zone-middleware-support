@@ -1,8 +1,9 @@
-package com.zone.middleware.http;
+package com.zone.middleware.http.client;
 
 import com.zone.middleware.common.error.SystemError;
 import com.zone.middleware.common.exception.ZoneBusinessException;
 import com.zone.middleware.http.config.ZoneHttpProperties;
+import com.zone.middleware.http.config.ZoneOfficialHttpClientProperties;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,14 +14,16 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ZoneRetryAndCircuitBreakerTest {
+/**
+ * 失败重试行为测试（熔断能力已移除，由 Sentinel 等专业熔断框架承接）。
+ */
+class ZoneRetryTest {
 
     private HttpServer server;
     private String baseUrl;
@@ -48,7 +51,8 @@ class ZoneRetryAndCircuitBreakerTest {
     private ZoneHttpTemplate template(ZoneHttpProperties properties) {
         java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(2)).build();
-        return new ZoneHttpTemplate(client, properties, null);
+        return new ZoneHttpTemplate(client, properties,
+                new ZoneOfficialHttpClientProperties.Client(), null);
     }
 
     @Test
@@ -126,70 +130,5 @@ class ZoneRetryAndCircuitBreakerTest {
         assertThrows(ZoneBusinessException.class,
                 () -> template(retryProps(3, 10)).get(baseUrl + "/not-found", String.class));
         assertEquals(1, hits.get(), "404 不在可重试状态码内，仅 1 次请求");
-    }
-
-    @Test
-    void circuitBreakerShouldOpenAndRecover() throws Exception {
-        AtomicInteger hits = new AtomicInteger();
-        AtomicBoolean healthy = new AtomicBoolean(false);
-        server.createContext("/cb", exchange -> {
-            hits.incrementAndGet();
-            boolean ok = healthy.get();
-            byte[] out = (ok ? "{\"name\":\"recovered\"}" : "{}").getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(ok ? 200 : 503, out.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(out);
-            }
-        });
-        server.start();
-
-        ZoneHttpProperties properties = new ZoneHttpProperties();
-        properties.getCircuitBreaker().setEnabled(true);
-        properties.getCircuitBreaker().setFailureThreshold(2);
-        properties.getCircuitBreaker().setOpenWaitDuration(Duration.ofMillis(250));
-        ZoneHttpTemplate httpTemplate = template(properties);
-
-        // 两次失败达到阈值 → OPEN
-        assertThrows(ZoneBusinessException.class,
-                () -> httpTemplate.get(baseUrl + "/cb", String.class));
-        assertThrows(ZoneBusinessException.class,
-                () -> httpTemplate.get(baseUrl + "/cb", String.class));
-        assertEquals(2, hits.get());
-        assertEquals(ZoneCircuitBreaker.State.OPEN, httpTemplate.circuitBreakerState());
-
-        // OPEN：第三次不再到达服务端
-        ZoneBusinessException open = assertThrows(ZoneBusinessException.class,
-                () -> httpTemplate.get(baseUrl + "/cb", String.class));
-        assertEquals(SystemError.CIRCUIT_OPEN, open.getError());
-        assertEquals(2, hits.get(), "OPEN 状态请求不应到达服务端");
-
-        // 冷却后服务恢复 → HALF_OPEN 探测成功 → CLOSED
-        Thread.sleep(350);
-        healthy.set(true);
-        ZoneHttpTemplateTest.User user = httpTemplate.get(baseUrl + "/cb", ZoneHttpTemplateTest.User.class);
-        assertEquals("recovered", user.getName());
-        assertEquals(3, hits.get());
-        assertEquals(ZoneCircuitBreaker.State.CLOSED, httpTemplate.circuitBreakerState());
-    }
-
-    @Test
-    void circuitBreakerDisabledByDefaultShouldAlwaysAttempt() {
-        AtomicInteger hits = new AtomicInteger();
-        server.createContext("/cb-off", exchange -> {
-            hits.incrementAndGet();
-            byte[] out = "{}".getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(503, out.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(out);
-            }
-        });
-        server.start();
-
-        ZoneHttpTemplate httpTemplate = template(new ZoneHttpProperties());
-        for (int i = 0; i < 6; i++) {
-            assertThrows(ZoneBusinessException.class,
-                    () -> httpTemplate.get(baseUrl + "/cb-off", String.class));
-        }
-        assertEquals(6, hits.get(), "未开启熔断时每次请求都真实发出");
     }
 }

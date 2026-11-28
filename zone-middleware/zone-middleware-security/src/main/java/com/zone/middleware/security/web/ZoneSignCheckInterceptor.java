@@ -222,6 +222,10 @@ public class ZoneSignCheckInterceptor implements HandlerInterceptor {
         // 7. 签名比对（常量时间比较，先于 nonce 消费防 reqId 抢占）
         String expectedSign = ZoneSignUtils.sign(params, secret);
         String actualSign = signHeader.trim().toLowerCase();
+        // 签名比对三要素埋点（debug 级：含凭证形态与业务参数，默认 INFO 门槛不输出，仅排障时开启）
+        ZoneLog.debug(CLASS_NAME, "verifySign",
+                "签名比对: zone-access-token={}, 服务端参与参数={}, 服务端计算签名={}",
+                actualSign, params, expectedSign);
         if (!MessageDigest.isEqual(expectedSign.getBytes(StandardCharsets.UTF_8),
                 actualSign.getBytes(StandardCharsets.UTF_8))) {
             return reject(response, "签名不一致");

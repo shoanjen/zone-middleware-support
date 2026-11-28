@@ -1,7 +1,9 @@
 package com.zone.middleware.http;
 
+import com.zone.middleware.http.client.ZoneHttpTemplate;
 import com.zone.middleware.http.config.ZoneHttpAutoConfiguration;
 import com.zone.middleware.http.config.ZoneHttpProperties;
+import com.zone.middleware.http.config.ZoneOfficialHttpClientProperties;
 import com.zone.middleware.http.interceptor.ZoneAuthInterceptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -49,22 +51,22 @@ class ZoneHttpAutoConfigurationTest {
     @Test
     void customPropertiesShouldBind() {
         runner.withPropertyValues(
-                        "zone.middleware.http.connect-timeout=2s",
-                        "zone.middleware.http.read-timeout=20s",
+                        "spring.http.client.connect-timeout=2s",
+                        "spring.http.client.read-timeout=20s",
+                        "spring.http.client.redirects=never",
                         "zone.middleware.http.max-concurrent-requests=8",
                         "zone.middleware.http.retry.enabled=true",
-                        "zone.middleware.http.retry.max-attempts=4",
-                        "zone.middleware.http.circuit-breaker.enabled=true",
-                        "zone.middleware.http.circuit-breaker.failure-threshold=3")
+                        "zone.middleware.http.retry.max-attempts=4")
                 .run(context -> {
+                    ZoneOfficialHttpClientProperties.Client client =
+                            context.getBean(ZoneOfficialHttpClientProperties.Client.class);
+                    assertEquals(Duration.ofSeconds(2), client.getConnectTimeout());
+                    assertEquals(Duration.ofSeconds(20), client.getReadTimeout());
+                    assertEquals(ZoneOfficialHttpClientProperties.Redirects.NEVER, client.getRedirects());
                     ZoneHttpProperties properties = context.getBean(ZoneHttpProperties.class);
-                    assertEquals(Duration.ofSeconds(2), properties.getConnectTimeout());
-                    assertEquals(Duration.ofSeconds(20), properties.getReadTimeout());
                     assertEquals(8, properties.getMaxConcurrentRequests());
                     assertEquals(true, properties.getRetry().isEnabled());
                     assertEquals(4, properties.getRetry().getMaxAttempts());
-                    assertEquals(true, properties.getCircuitBreaker().isEnabled());
-                    assertEquals(3, properties.getCircuitBreaker().getFailureThreshold());
                 });
     }
 }

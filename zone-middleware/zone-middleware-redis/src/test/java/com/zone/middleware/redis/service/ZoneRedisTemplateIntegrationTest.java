@@ -1,4 +1,4 @@
-package com.zone.middleware.redis;
+package com.zone.middleware.redis.service;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

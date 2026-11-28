@@ -1,20 +1,22 @@
 package com.zone.middleware.common.result;
 
-import com.alibaba.fastjson2.JSON;
 import com.zone.middleware.common.error.ZoneError;
+import com.zone.middleware.common.util.JsonUtil;
 import lombok.Data;
 
 /**
  * Zone 生态统一服务返回体。
  * <p>字段：success / code / message / data / timestamp；JSON 序列化统一使用 fastjson2。</p>
  *
+ * <p>code 语义：成功为 {@code 200}，失败为失败异常码（{@code SYS-xxxx} / {@code BIZ-xxxx}）。</p>
+ *
  * @param <T> 数据载荷类型
  */
 @Data
 public class ZoneResult<T> {
 
-    /** 成功码 */
-    public static final String SUCCESS_CODE = "SUCCESS";
+    /** 成功码（HTTP 习惯语义） */
+    public static final String SUCCESS_CODE = "200";
     /** 成功默认消息 */
     public static final String SUCCESS_MESSAGE = "成功";
 
@@ -32,7 +34,7 @@ public class ZoneResult<T> {
      * 全参构造（工厂方法内部使用）。
      *
      * @param success 是否成功
-     * @param code    返回码（成功码或错误码）
+     * @param code    返回码（成功码 200 或失败异常码）
      * @param message 返回消息
      * @param data    数据载荷，可为 null
      */
@@ -45,24 +47,36 @@ public class ZoneResult<T> {
     }
 
     /**
-     * 构建成功结果（无数据）。
+     * 构建成功结果（无数据，默认消息）。
      *
      * @param <T> 数据载荷类型
-     * @return success=true、code 为成功码、data 为 null 的返回体
+     * @return success=true、code 为 200、data 为 null 的返回体
      */
     public static <T> ZoneResult<T> ok() {
         return build(true, SUCCESS_CODE, SUCCESS_MESSAGE, null);
     }
 
     /**
-     * 构建成功结果（携带数据）。
+     * 构建成功结果（携带数据，默认消息）。
      *
      * @param data 数据载荷
      * @param <T>  数据载荷类型
-     * @return success=true 且 data 为传入值的返回体
+     * @return success=true、code 为 200 且 data 为传入值的返回体
      */
     public static <T> ZoneResult<T> ok(T data) {
         return build(true, SUCCESS_CODE, SUCCESS_MESSAGE, data);
+    }
+
+    /**
+     * 构建成功结果（携带数据与自定义消息）。
+     *
+     * @param data    数据载荷
+     * @param message 覆盖默认成功描述的自定义消息
+     * @param <T>     数据载荷类型
+     * @return success=true、code 为 200、message 为自定义消息的返回体
+     */
+    public static <T> ZoneResult<T> ok(T data, String message) {
+        return build(true, SUCCESS_CODE, message, data);
     }
 
     /**
@@ -103,11 +117,11 @@ public class ZoneResult<T> {
     }
 
     /**
-     * 序列化为 JSON 字符串（fastjson2）。
+     * 序列化为 JSON 字符串（fastjson2，经 JsonUtil 收口）。
      *
      * @return 当前返回体的 JSON 文本
      */
     public String toJson() {
-        return JSON.toJSONString(this);
+        return JsonUtil.toJson(this);
     }
 }

@@ -1,6 +1,6 @@
 package com.zone.middleware.security.sign;
 
-import com.alibaba.fastjson2.JSON;
+import com.zone.middleware.common.util.JsonUtil;
 import com.zone.middleware.common.util.ZoneRandomUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -129,7 +129,7 @@ public final class ZoneSignUtils {
         if (value == null) {
             return null;
         }
-        String text = value instanceof String ? (String) value : JSON.toJSONString(value);
+        String text = value instanceof String ? (String) value : JsonUtil.toJson(value);
         return text.isEmpty() ? null : text;
     }
 

@@ -65,9 +65,8 @@ class ZoneDataSourceConfigurationTest {
     }
 
     @Test
-    void explicitOfficialKeysShouldOverrideCloudPresets() {
+    void explicitOfficialKeysShouldApply() {
         runner.withPropertyValues(
-                        "zone.middleware.db.mode=CLOUD",
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
                         "spring.datasource.hikari.maximum-pool-size=3",
@@ -85,7 +84,7 @@ class ZoneDataSourceConfigurationTest {
                         "spring.datasource.type=com.alibaba.druid.pool.DruidDataSource",
                         "spring.datasource.url=" + H2_URL,
                         "spring.datasource.username=sa",
-                        // ApplicationContextRunner 不执行 EEP，LOCAL 预设(5s)以显式键模拟
+                        // 未配 max-wait 等项时回归 Druid 官方默认；此处显式验证官方键生效
                         "spring.datasource.druid.max-wait=5000")
                 .run(context -> {
                     DataSource dataSource = context.getBean(DataSource.class);

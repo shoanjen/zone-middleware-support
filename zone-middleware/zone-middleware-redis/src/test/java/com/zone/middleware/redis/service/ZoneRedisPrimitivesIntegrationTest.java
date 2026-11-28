@@ -1,4 +1,4 @@
-package com.zone.middleware.redis;
+package com.zone.middleware.redis.service;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

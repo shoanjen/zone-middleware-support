@@ -22,9 +22,6 @@ public enum SystemError implements ZoneError {
     /** HTTP 请求失败 */
     HTTP_ERROR("SYS-3001", "HTTP请求失败"),
 
-    /** 熔断开启，请求快速失败 */
-    CIRCUIT_OPEN("SYS-3002", "熔断开启，请求快速失败"),
-
     /** 服务暂不可用 */
     SERVICE_UNAVAILABLE("SYS-3003", "服务暂不可用"),
 

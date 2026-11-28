@@ -1,10 +1,11 @@
-package com.zone.middleware.http;
+package com.zone.middleware.http.client;
 
 import com.sun.net.httpserver.HttpServer;
 import com.zone.middleware.common.error.SystemError;
 import com.zone.middleware.common.exception.ZoneBusinessException;
 import com.zone.middleware.common.result.ZoneResult;
 import com.zone.middleware.http.config.ZoneHttpProperties;
+import com.zone.middleware.http.config.ZoneOfficialHttpClientProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -69,8 +70,13 @@ class ZoneHttpTemplateTest {
     }
 
     private ZoneHttpTemplate template(ZoneHttpProperties properties) {
+        return template(properties, new ZoneOfficialHttpClientProperties.Client());
+    }
+
+    private ZoneHttpTemplate template(ZoneHttpProperties properties,
+                                      ZoneOfficialHttpClientProperties.Client client) {
         HttpClientBuilder builder = new HttpClientBuilder();
-        return new ZoneHttpTemplate(builder.build(), properties, null);
+        return new ZoneHttpTemplate(builder.build(), properties, client, null);
     }
 
     /** 直接构建 JDK HttpClient（绕开自动配置，测试专用） */
@@ -92,12 +98,12 @@ class ZoneHttpTemplateTest {
 
     @Test
     void getShouldSupportZoneResultType() {
-        respond(200, "{\"success\":true,\"code\":\"SUCCESS\",\"message\":\"成功\","
+        respond(200, "{\"success\":true,\"code\":\"200\",\"message\":\"成功\","
                 + "\"data\":{\"name\":\"zone\",\"age\":3},\"timestamp\":1}");
         ZoneResult<User> result = template(new ZoneHttpProperties())
                 .get(baseUrl + "/user", ZoneResult.class);
         assertTrue(result.isSuccess());
-        assertEquals("SUCCESS", result.getCode());
+        assertEquals("200", result.getCode());
     }
 
     @Test
@@ -138,7 +144,7 @@ class ZoneHttpTemplateTest {
 
         java.net.http.HttpClient client = new HttpClientBuilder().build();
         ZoneHttpTemplate httpTemplate = new ZoneHttpTemplate(
-                client, new ZoneHttpProperties(),
+                client, new ZoneHttpProperties(), new ZoneOfficialHttpClientProperties.Client(),
                 java.util.List.of(builder -> builder.header("Authorization", "Bearer zone-token")));
 
         Map<?, ?> first = httpTemplate.get(baseUrl + "/auth", Map.class);
@@ -172,9 +178,10 @@ class ZoneHttpTemplateTest {
         server.start();
 
         ZoneHttpProperties properties = new ZoneHttpProperties();
-        properties.setReadTimeout(Duration.ofMillis(150));
+        ZoneOfficialHttpClientProperties.Client client = new ZoneOfficialHttpClientProperties.Client();
+        client.setReadTimeout(Duration.ofMillis(150));
         ZoneBusinessException exception = assertThrows(ZoneBusinessException.class,
-                () -> template(properties).get(baseUrl + "/slow", User.class));
+                () -> template(properties, client).get(baseUrl + "/slow", User.class));
         assertEquals(SystemError.HTTP_ERROR, exception.getError());
     }
 

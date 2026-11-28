@@ -1,10 +1,11 @@
-package com.zone.middleware.http;
+package com.zone.middleware.http.client;
 
-import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.zone.middleware.common.error.SystemError;
 import com.zone.middleware.common.exception.ZoneBusinessException;
+import com.zone.middleware.common.util.JsonUtil;
 import com.zone.middleware.http.config.ZoneHttpProperties;
+import com.zone.middleware.http.config.ZoneOfficialHttpClientProperties;
 import com.zone.middleware.http.interceptor.ZoneAuthInterceptor;
 import com.zone.middleware.log.ZoneLog;
 
@@ -22,44 +23,34 @@ import java.util.concurrent.Semaphore;
 /**
  * Zone 统一 HTTP 模板：基于 JDK 21 内置 HttpClient。
  *
- * <p>能力：默认/自定义客户端配置、通用 GET/POST（fastjson2 序列化）、自定义鉴权、
- * 连接复用与并发上限（信号量）、可配置重试与熔断。</p>
+ * <p>能力：默认/自定义客户端配置、通用 GET/POST（fastjson2 序列化，经 {@link JsonUtil} 收口）、
+ * 自定义鉴权、连接复用与并发上限（信号量）、可配置重试。熔断保护已移除——需要熔断的上游
+ * 应用请接入 Sentinel / resilience4j 等专业熔断框架，以资源规则包裹模板调用。</p>
  */
 public class ZoneHttpTemplate {
 
     private final HttpClient httpClient;
     private final ZoneHttpProperties properties;
-    private final ZoneCircuitBreaker circuitBreaker;
+    private final Duration readTimeout;
     private final Semaphore concurrencyLimiter;
     private final List<ZoneAuthInterceptor> authInterceptors;
 
     /**
      * 构建统一 HTTP 模板。
      *
-     * @param httpClient       底层 JDK HttpClient（连接复用与重定向策略由此承载）
-     * @param properties       zone.middleware.http.* 配置
+     * @param httpClient       底层 JDK HttpClient（连接复用、连接超时与重定向策略由此承载）
+     * @param properties       zone.middleware.http.* 行为配置（并发上限、重试）
+     * @param client           官方 spring.http.client.* 绑定（读超时逐请求施加）
      * @param authInterceptors 鉴权拦截器列表（可为 null/空，均会被逐个应用于每个请求）
      */
     public ZoneHttpTemplate(HttpClient httpClient, ZoneHttpProperties properties,
+                            ZoneOfficialHttpClientProperties.Client client,
                             List<ZoneAuthInterceptor> authInterceptors) {
         this.httpClient = httpClient;
         this.properties = properties;
+        this.readTimeout = client.getReadTimeout();
         this.authInterceptors = authInterceptors == null ? List.of() : List.copyOf(authInterceptors);
         this.concurrencyLimiter = new Semaphore(Math.max(1, properties.getMaxConcurrentRequests()));
-        this.circuitBreaker = properties.getCircuitBreaker().isEnabled()
-                ? new ZoneCircuitBreaker(
-                        properties.getCircuitBreaker().getFailureThreshold(),
-                        properties.getCircuitBreaker().getOpenWaitDuration())
-                : null;
-    }
-
-    /**
-     * 获取当前熔断状态。
-     *
-     * @return 熔断状态；未开启熔断时返回 null
-     */
-    public ZoneCircuitBreaker.State circuitBreakerState() {
-        return circuitBreaker == null ? null : circuitBreaker.getState();
     }
 
     /**
@@ -69,7 +60,7 @@ public class ZoneHttpTemplate {
      * @param responseType 响应目标类型（String 原样返回，其他类型 fastjson2 反序列化）
      * @param <T>          响应类型
      * @return 反序列化后的响应体
-     * @throws ZoneBusinessException 非 2xx（重试耗尽或不可重试）、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx（重试耗尽或不可重试）或 IO 异常
      */
     public <T> T get(String url, Class<T> responseType) {
         return get(url, null, responseType);
@@ -83,7 +74,7 @@ public class ZoneHttpTemplate {
      * @param responseType 响应目标类型
      * @param <T>          响应类型
      * @return 反序列化后的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T get(String url, Map<String, String> headers, Class<T> responseType) {
         return exchange(HttpMethod.GET, url, null, headers, responseType);
@@ -97,7 +88,7 @@ public class ZoneHttpTemplate {
      * @param responseType 响应目标类型
      * @param <T>          响应类型
      * @return 反序列化后的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T post(String url, Object body, Class<T> responseType) {
         return post(url, body, null, responseType);
@@ -112,7 +103,7 @@ public class ZoneHttpTemplate {
      * @param responseType 响应目标类型
      * @param <T>          响应类型
      * @return 反序列化后的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T post(String url, Object body, Map<String, String> headers, Class<T> responseType) {
         return exchange(HttpMethod.POST, url, body, headers, responseType);
@@ -127,7 +118,7 @@ public class ZoneHttpTemplate {
      * @param responseType 泛型响应类型声明
      * @param <T>          响应类型
      * @return 按声明泛型反序列化的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T get(String url, TypeReference<T> responseType) {
         return get(url, null, responseType);
@@ -141,7 +132,7 @@ public class ZoneHttpTemplate {
      * @param responseType 泛型响应类型声明
      * @param <T>          响应类型
      * @return 按声明泛型反序列化的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T get(String url, Map<String, String> headers, TypeReference<T> responseType) {
         return exchange(HttpMethod.GET, url, null, headers, responseType);
@@ -155,7 +146,7 @@ public class ZoneHttpTemplate {
      * @param responseType 泛型响应类型声明
      * @param <T>          响应类型
      * @return 按声明泛型反序列化的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T post(String url, Object body, TypeReference<T> responseType) {
         return post(url, body, null, responseType);
@@ -170,7 +161,7 @@ public class ZoneHttpTemplate {
      * @param responseType 泛型响应类型声明
      * @param <T>          响应类型
      * @return 按声明泛型反序列化的响应体
-     * @throws ZoneBusinessException 非 2xx、IO 异常或熔断开启
+     * @throws ZoneBusinessException 非 2xx 或 IO 异常
      */
     public <T> T post(String url, Object body, Map<String, String> headers, TypeReference<T> responseType) {
         return exchange(HttpMethod.POST, url, body, headers, responseType);
@@ -183,7 +174,7 @@ public class ZoneHttpTemplate {
     }
 
     /**
-     * 请求统一入口：熔断判定 + 成功/失败记录 + 异常语义统一。
+     * 请求统一入口：异常语义统一。
      *
      * @param method      HTTP 方法
      * @param url         目标地址
@@ -192,26 +183,11 @@ public class ZoneHttpTemplate {
      * @param responseType 响应目标类型（Class 或 TypeReference）
      * @param <T>         响应类型
      * @return 反序列化后的响应体
-     * @throws ZoneBusinessException 熔断开启（CIRCUIT_OPEN）或底层失败（HTTP_ERROR）
+     * @throws ZoneBusinessException 底层失败（HTTP_ERROR）
      */
     private <T> T exchange(HttpMethod method, String url, Object body,
                            Map<String, String> headers, Object responseType) {
-        if (circuitBreaker != null && !circuitBreaker.tryAcquire()) {
-            ZoneLog.warn("ZoneHttpTemplate", "exchange", "熔断开启，请求快速失败: {}", url);
-            throw new ZoneBusinessException(SystemError.CIRCUIT_OPEN, "熔断开启，请求快速失败: " + url);
-        }
-        try {
-            T result = executeWithRetry(method, url, body, headers, responseType);
-            if (circuitBreaker != null) {
-                circuitBreaker.recordSuccess();
-            }
-            return result;
-        } catch (RuntimeException e) {
-            if (circuitBreaker != null) {
-                circuitBreaker.recordFailure();
-            }
-            throw e;
-        }
+        return executeWithRetry(method, url, body, headers, responseType);
     }
 
     /**
@@ -284,7 +260,7 @@ public class ZoneHttpTemplate {
                                       Map<String, String> headers)
             throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
-                .timeout(properties.getReadTimeout());
+                .timeout(readTimeout);
         if (headers != null) {
             headers.forEach(builder::header);
         }
@@ -294,7 +270,7 @@ public class ZoneHttpTemplate {
         if (method == HttpMethod.POST && body != null) {
             builder.header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(
-                            JSON.toJSONString(body), StandardCharsets.UTF_8));
+                            JsonUtil.toJson(body), StandardCharsets.UTF_8));
         } else {
             builder.GET();
         }
@@ -313,7 +289,7 @@ public class ZoneHttpTemplate {
 
     /**
      * 解析响应体：String 原样返回，其他类型按 Class 或 TypeReference 由 fastjson2 反序列化
-     * （TypeReference 支持完整泛型树，data 不退化为 JSONObject）。
+     * （TypeReference 支持完整泛型树，data 不退化为 JSONObject；经 {@link JsonUtil} 收口）。
      *
      * @param body        响应体字符串
      * @param responseType 目标类型（Class 或 TypeReference）
@@ -329,10 +305,10 @@ public class ZoneHttpTemplate {
             return null;
         }
         if (responseType instanceof Class<?> clazz) {
-            return (T) JSON.parseObject(body, clazz);
+            return (T) JsonUtil.fromJson(body, clazz);
         }
         if (responseType instanceof TypeReference<?> typeReference) {
-            return (T) JSON.parseObject(body, typeReference);
+            return (T) JsonUtil.fromJson(body, typeReference);
         }
         throw new IllegalArgumentException("不支持的响应类型声明: " + responseType.getClass().getName());
     }

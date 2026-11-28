@@ -1,5 +1,6 @@
-package com.zone.middleware.redis;
+package com.zone.middleware.redis.service;
 
+import com.zone.middleware.common.util.JsonUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
@@ -437,7 +438,7 @@ public class ZoneRedisTemplate {
     // ==================== 序列化 ====================
 
     /**
-     * 值对象序列化为 JSON 文本。
+     * 值对象序列化为 JSON 文本（生态统一经 {@link JsonUtil} 收口，模板层附加非空约束）。
      *
      * @param value 值对象，不能为空
      * @return JSON 字符串
@@ -445,11 +446,11 @@ public class ZoneRedisTemplate {
      */
     private String toJson(Object value) {
         Objects.requireNonNull(value, "value 不能为空");
-        return com.alibaba.fastjson2.JSON.toJSONString(value);
+        return JsonUtil.toJson(value);
     }
 
     /**
-     * JSON 文本反序列化为目标类型。
+     * JSON 文本反序列化为目标类型（委托 {@link JsonUtil}）。
      *
      * @param raw  JSON 字符串，可为 null
      * @param type 目标类型
@@ -457,10 +458,7 @@ public class ZoneRedisTemplate {
      * @return 还原对象；raw 为 null 时返回 null
      */
     private <T> T fromJson(String raw, Class<T> type) {
-        if (raw == null) {
-            return null;
-        }
-        return com.alibaba.fastjson2.JSON.parseObject(raw, type);
+        return JsonUtil.fromJson(raw, type);
     }
 
     /**

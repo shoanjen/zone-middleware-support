@@ -16,11 +16,11 @@ Zone 中间件支撑二方库（Maven 多模块项目）。为 Zone 生态的 Sp
 
 | 模块 | 能力 |
 |---|---|
-| zone-middleware-common | `ZoneResult` 统一返回体；`ZoneError` 错误体系（`SystemError`/`BusinessError`）+ `ZoneBusinessException`；`ZoneConstants` 顶层设计常量接口（上层派生领域常量，内置 `Zone-Access-Token`/`Zone-Trace-Id` 请求头 Key，鉴权/日志二方包预留）；工具类：`ZoneIpUtils`（客户端 IP）、`ZoneBrowserUtils`（浏览器指纹）、`ZoneRandomUtils`（分段随机字符串）；`BaseRequest` 基础请求载体 + `Platform`/`OsType` 枚举 |
+| zone-middleware-common | `ZoneResult` 统一返回体（成功码 200）；`ZoneError` 错误体系（`SystemError`/`BusinessError`）+ `ZoneBusinessException`；`ZoneConstants` 顶层设计常量接口（上层派生领域常量，内置 `Zone-Access-Token`/`Zone-Trace-Id` 请求头 Key，鉴权/日志二方包预留）；工具类：`JsonUtil`（生态统一 JSON）、`ZoneIpUtils`（客户端 IP）、`ZoneBrowserUtils`（浏览器指纹）、`ZoneRandomUtils`（分段随机字符串）；`BaseRequest` 基础请求载体 + `Platform`/`OsType` 枚举 |
 | zone-middleware-log | `ZoneLog` 统一日志静态门面（{} 占位符 + Object... 变参，无 AOP；TEXT/JSON 双行格式），`ZoneTraceContext` traceId + reqId 双标识线程上下文，env 环境标识；库内各模块埋点统一使用 ZoneLog |
-| zone-middleware-redis | `ZoneRedisTemplate`：String/Hash/List/Set/ZSet 增删改查 + 批量；LOCAL/CLOUD 模式预设；Lettuce 连接池 |
-| zone-middleware-database | 数据源 + HikariCP/Druid 双连接池切换；MyBatis-Plus（分页插件、mapper 扫描）；Flyway 迁移；**不含 JPA** |
-| zone-middleware-http | `ZoneHttpTemplate`：JDK 21 内置 HttpClient；GET/POST、自定义鉴权、并发上限、重试、熔断 |
+| zone-middleware-redis | `ZoneRedisTemplate`：String/Hash/List/Set/ZSet 增删改查 + 批量；连接/池参数全由官方键承载；Lettuce 连接池按官方键启用 |
+| zone-middleware-database | 数据源 + HikariCP/Druid 双连接池切换；MyBatis-Plus 分页插件（Mapper 扫描走官方 @Mapper/@MapperScan）；Flyway 迁移；**不含 JPA** |
+| zone-middleware-http | `ZoneHttpTemplate`：JDK 21 内置 HttpClient；GET/POST、自定义鉴权、并发上限、重试（熔断已移除，建议 Sentinel） |
 | zone-middleware-security | 接口签名鉴权：`@ZoneSignCheck` 注解（可按端点覆盖时间窗、声明强制登录）+ MD5 签名（`Zone-Access-Token` 请求头）+ 时间窗与 reqId 防重放 + `ZoneSignUtils` 双端签名工具；登录令牌：`ZoneTokenService` 不透明令牌 + Redis（滑动续期/撤销/多端策略，`Zone-Auth-Token` 请求头）+ `ZoneSecurityContext` 登录上下文门面 |
 | zone-middleware-web | Web 入站可选支撑：全局异常处理器（三类异常转 ZoneResult）+ Trace 入站 Filter，均默认关、让位上游自定义组件 |
 | zone-middleware-suite | 全量套件聚合坐标（packaging=pom）：单坐标一次引入上述全部模块，适合整体接入 |
@@ -37,20 +37,21 @@ com.zone.middleware
 │   ├── enums       Platform / OsType
 │   ├── constant    ZoneConstants 顶层常量接口
 │   ├── request     BaseRequest
-│   └── util        ZoneIpUtils / ZoneBrowserUtils / ZoneRandomUtils
+│   └── util        JsonUtil / ZoneIpUtils / ZoneBrowserUtils / ZoneRandomUtils
 ├── log                                    # zone-middleware-log
 │   ├── (root)      ZoneLog / ZoneLogLevel / ZoneLogFormat / ZoneLogSettings / ZoneTraceContext
 │   └── config      ZoneLogProperties / ZoneLogAutoConfiguration / ZoneLogInitEnvironmentPostProcessor
 ├── redis                                  # zone-middleware-redis
-│   ├── (root)      ZoneRedisTemplate
-│   └── config      ZoneRedisProperties / ZoneRedisAutoConfiguration
+│   ├── service    ZoneRedisTemplate
+│   └── config      ZoneRedisAutoConfiguration
 ├── database                               # zone-middleware-database
-│   └── config      ZoneDatabaseProperties / ZoneDataSourceAutoConfiguration
+│   └── config      ZoneDataSourceAutoConfiguration
 │                   / ZoneMyBatisPlusConfiguration / ZoneFlywayConfiguration
-│                   / ZoneFlywayEnablementEnvironmentPostProcessor
+│                   / ZoneOfficialDataSourceProperties
 ├── http                                   # zone-middleware-http
-│   ├── (root)      ZoneHttpTemplate / ZoneCircuitBreaker
+│   ├── client     ZoneHttpTemplate
 │   ├── config      ZoneHttpProperties / ZoneHttpAutoConfiguration
+│   │               / ZoneOfficialHttpClientProperties
 │   └── interceptor ZoneAuthInterceptor
 └── security                               # zone-middleware-security
     ├── annotation  ZoneSignCheck
@@ -109,19 +110,17 @@ mvn clean install
 
 ### redis（zone-middleware-redis）
 
-连接配置使用 **Spring Boot 官方键 `spring.data.redis.*`**（连接工厂由官方装配）；zone 键仅剩部署模式：
+连接、超时与池配置全部使用 **Spring Boot 官方键 `spring.data.redis.*`**（连接工厂由官方装配，未配置项回归官方默认）；`zone.middleware.redis.*` 已无键：
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| zone.middleware.redis.mode | LOCAL | 部署模式 `LOCAL / CLOUD`（zone 行为键）：CLOUD 预设连接/命令超时 10s、TCP 保活开；预设经官方键承载，显式配置优先 |
 | spring.data.redis.host / port | 127.0.0.1 / 6379 | 连接地址（共享本地实例直连即可，用独立 database 隔离） |
 | spring.data.redis.password | — | 密码（无密码留空） |
 | spring.data.redis.database | 0 | db index（与其他应用隔离用） |
 | spring.data.redis.ssl.enabled | false | 是否 TLS（Boot 3.1+ 对象键，云端按需开启） |
-| spring.data.redis.connect-timeout | LOCAL 预设 2s / CLOUD 预设 10s | 连接超时（显式配置覆盖预设） |
-| spring.data.redis.timeout | LOCAL 预设 3s / CLOUD 预设 10s | 命令超时 |
-| —（无官方键） | LOCAL 关 / CLOUD 开 | TCP 保活：按 zone mode 自动应用，不可单独配置 |
-| spring.data.redis.lettuce.pool.max-active / max-idle / min-idle / max-wait | 预设 8 / 8 / 0 / 2s | 连接池参数 |
+| spring.data.redis.connect-timeout | 官方默认 | 连接超时（生产建议显式配置，如 10s） |
+| spring.data.redis.timeout | 官方默认 | 命令超时（生产建议显式配置，如 10s） |
+| spring.data.redis.lettuce.pool.max-active / max-idle / min-idle / max-wait | 未配置不启用池 | 连接池参数（生产建议显式配置，如 8 / 8 / 0 / 2s） |
 
 ```java
 @Autowired ZoneRedisTemplate redis;
@@ -135,18 +134,15 @@ redis.deleteKeys(List.of("user:1", "user:2"));
 
 ### db（zone-middleware-database）
 
-连接、池参数与迁移控制使用 **Spring Boot 官方键**（`spring.datasource.*` / `spring.flyway.*`）；zone 键仅剩部署模式与 MyBatis 整合：
+连接、池参数与迁移控制全部使用 **Spring Boot 官方键**（`spring.datasource.*` / `spring.flyway.*`，未配置项回归官方默认），**本模块无 zone 键**；Mapper 扫描走官方行为（主应用包下 `@Mapper` 自动扫描，跨包用 `@MapperScan`）：
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| zone.middleware.db.mode | LOCAL | `LOCAL / CLOUD` 部署模式（zone 行为键）：LOCAL 预设开启 Hikari 泄漏检测(10s)便于开发；CLOUD 预设获取超时(15s)、连接保活(120s)、关闭泄漏检测；预设经官方键承载，显式配置优先 |
 | spring.datasource.url / username / password / driver-class-name | —（url 必填） | 连接信息（官方键），缺失启动失败并报 CONFIG_ERROR |
 | spring.datasource.type | HikariCP（缺省） | 连接池切换（官方键）：填 `com.alibaba.druid.pool.DruidDataSource` 切 Druid |
-| spring.datasource.hikari.maximum-pool-size / minimum-idle / connection-timeout / leak-detection-threshold / keepalive-time | 预设见上 | Hikari 池参数（官方键，显式配置覆盖预设） |
-| spring.datasource.druid.initial-size / min-idle / max-active / max-wait / keep-alive | 2 / 2 / 8 / LOCAL 5s·CLOUD 15s / CLOUD true | Druid 池参数（官方键） |
+| spring.datasource.hikari.maximum-pool-size / minimum-idle / connection-timeout / leak-detection-threshold / keepalive-time | 官方默认 | Hikari 池参数（官方键；生产建议显式配置，如 connection-timeout 15s、keepalive-time 120000） |
+| spring.datasource.druid.initial-size / min-idle / max-active / max-wait / keep-alive | 官方默认 | Druid 池参数（官方键；生产建议显式配置，如 initial-size 2、max-wait 15000、keep-alive true） |
 | spring.datasource.druid.filters | — | Druid filter 别名列表（逗号分隔，如 stat,wall,slf4j）；未注册别名启动失败（本库预校验） |
-| zone.middleware.db.mybatis.pagination-enabled | true | MyBatis-Plus 分页插件（方言自动识别，zone 行为键） |
-| zone.middleware.db.mybatis.mapper-package | — | 配置后自动扫描注册 Mapper（zone 行为键） |
 | spring.flyway.enabled | true | 迁移开关（官方键） |
 | spring.flyway.locations | 预设 classpath:db/migration | 迁移脚本路径（逗号分隔，官方键） |
 | spring.flyway.baseline-on-migrate | 预设 false | 对已有库基线化（官方键） |
@@ -214,20 +210,21 @@ reqId 不定义协议头传播（串联归 traceId，出站头 `Zone-Trace-Id` �
 
 ### http（zone-middleware-http）
 
+连接超时、读超时与重定向策略使用 **Spring Boot 官方键 `spring.http.client.*`**（Boot 3.4+ 键面，未配置兜底 5s / 10s / follow-when-possible）；并发与重试无官方对应，保留 zone 键：
+
 | 键 | 默认 | 说明 |
 |---|---|---|
-| zone.middleware.http.connect-timeout | 5s | 连接超时 |
-| zone.middleware.http.read-timeout | 10s | 单请求读超时 |
-| zone.middleware.http.redirect | NORMAL | 重定向策略 NONE/NORMAL/ALWAYS |
-| zone.middleware.http.max-concurrent-requests | 64 | 并发上限（信号量，超出等待） |
+| spring.http.client.connect-timeout | 兜底 5s | 连接超时（官方键） |
+| spring.http.client.read-timeout | 兜底 10s | 单请求读超时（官方键，逐请求施加） |
+| spring.http.client.redirects | 兜底 follow-when-possible | 重定向策略（官方键，`never` / `follow-when-possible`；确需无条件重定向自行声明 HttpClient Bean） |
+| zone.middleware.http.max-concurrent-requests | 64 | 并发上限（信号量，超出等待；无官方对应） |
 | zone.middleware.http.retry.enabled | false | 失败重试开关 |
 | zone.middleware.http.retry.max-attempts | 3 | 最大尝试次数（含首次） |
 | zone.middleware.http.retry.initial-backoff / backoff-multiplier / max-backoff | 500ms / 2.0 / 10s | 指数退避 |
 | zone.middleware.http.retry.retryable-statuses | 429,502,503,504 | 可重试状态码 |
 | zone.middleware.http.retry.retry-on-io-error | true | 网络异常是否重试 |
-| zone.middleware.http.circuit-breaker.enabled | false | 熔断开关 |
-| zone.middleware.http.circuit-breaker.failure-threshold | 5 | 连续失败阈值（达到即 OPEN） |
-| zone.middleware.http.circuit-breaker.open-wait-duration | 30s | OPEN 冷却时长（过后 HALF_OPEN 探测） |
+
+> ℹ️ 熔断能力已移除（2026-11-27）：与 Sentinel / resilience4j 职责重叠；需要熔断的上游请接入 Alibaba Sentinel，以资源规则包裹 `ZoneHttpTemplate` 调用。
 
 ```java
 @Autowired ZoneHttpTemplate http;
@@ -242,19 +239,24 @@ User user = http.get("https://api.example.com/user/1", User.class);
 ZoneResult<Order> result = http.post(baseUrl + "/order", orderReq, ZoneResult.class);
 ```
 
-失败语义：非 2xx（重试耗尽或不可重试）、IO 异常、熔断 OPEN 均抛
-`ZoneBusinessException`（错误码 `SYS-3001 HTTP_ERROR` / `SYS-3002 CIRCUIT_OPEN`，消息含状态码）。
+失败语义：非 2xx（重试耗尽或不可重试）与 IO 异常抛
+`ZoneBusinessException`（错误码 `SYS-3001 HTTP_ERROR`，消息含状态码）。
 
 ## 错误码、返回体与基础请求（common）
 
 ```java
-ZoneResult.ok(data);                            // success=true, code=SUCCESS
+ZoneResult.ok(data);                            // success=true, code=200
+ZoneResult.ok(data, "订单创建成功");              // 成功响应自定义消息
 ZoneResult.fail(BusinessError.DATA_NOT_FOUND);  // success=false, code=BIZ-4004
 ZoneResult.fail(SystemError.CONFIG_ERROR, "缺少 redis 配置");
 
 throw new ZoneBusinessException(BusinessError.PARAM_INVALID, "订单号不能为空");
 
-// 请求 DTO 继承 BaseRequest，统一携带 reqId/platform/ip/deviceId/os/version/timestamp/sign
+// 生态统一 JSON 工具（fastjson2 底座，模块内序列化已收口）
+String json = JsonUtil.toJson(order);
+Order parsed = JsonUtil.fromJson(json, Order.class);
+
+// 请求 DTO 继承 BaseRequest，统一携带 reqId/platform/ip/deviceId/os/version/timestamp
 // platform 与 os 为字符串透传（未知值、大小写形态原样保留）；枚举是上层解析工具：
 public class OrderQueryRequest extends BaseRequest {
     private String orderNo;
@@ -263,7 +265,7 @@ Platform platform = Platform.of(request.getPlatform()); // "web" → WEB；未�
 OsType os = OsType.of(request.getOs());                 // "harmony" → HARMONY
 ```
 
-- SystemError（SYS- 前缀）：CONFIG_ERROR / DB_ERROR / REDIS_ERROR / HTTP_ERROR / CIRCUIT_OPEN / SERVICE_UNAVAILABLE / INTERNAL_ERROR
+- SystemError（SYS- 前缀）：CONFIG_ERROR / DB_ERROR / REDIS_ERROR / HTTP_ERROR / SERVICE_UNAVAILABLE / INTERNAL_ERROR
 - BusinessError（BIZ- 前缀）：PARAM_INVALID / UNAUTHORIZED / FORBIDDEN / DATA_NOT_FOUND / DATA_CONFLICT / BUSINESS_FAILED
 
 ## 顶层常量接口（common）

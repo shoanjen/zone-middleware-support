@@ -29,9 +29,8 @@ import java.util.Properties;
  * 数据源自动装配：按 Spring Boot 官方键（spring.datasource.*）构建 HikariCP 或 Druid 数据源
  * （手工装配，不依赖各家 starter 自动配置）。连接信息取自官方 {@link DataSourceProperties}，
  * 池参数绑定官方前缀（spring.datasource.hikari.* / spring.datasource.druid.*），
- * 连接池类型由 spring.datasource.type 选择（缺省 HikariCP，Druid 填全限定类名）。
- * 部署模式预设（zone.middleware.db.mode）经 ZoneDbPresetEnvironmentPostProcessor 注入官方键。
- * 事务管理由 Spring Boot 自动配置基于本数据源生效。
+ * 连接池类型由 spring.datasource.type 选择（缺省 HikariCP，Druid 填全限定类名），
+ * 未配置项回归官方默认值。事务管理由 Spring Boot 自动配置基于本数据源生效。
  *
  * <p>注意：必须排在 Spring/MyBatis-Plus 的相关自动配置之前（按类名字母序 com.zone 恰好靠后，
  * 故显式声明 Before），否则它们的 DataSource 缺失条件会先被评估而回退/跳过。</p>
@@ -42,7 +41,6 @@ import java.util.Properties;
         DataSourceTransactionManagerAutoConfiguration.class,
         MybatisPlusAutoConfiguration.class})
 @EnableConfigurationProperties({
-        ZoneDatabaseProperties.class,
         DataSourceProperties.class,
         ZoneOfficialDataSourceProperties.Hikari.class,
         ZoneOfficialDataSourceProperties.Druid.class})
@@ -56,7 +54,6 @@ public class ZoneDataSourceAutoConfiguration {
      * 构建 zone 数据源（HikariCP / Druid 按 spring.datasource.type 切换）。
      *
      * @param dataSourceProperties 官方数据源配置（spring.datasource.*）
-     * @param zoneProperties       zone 行为配置（mode，用于启动日志）
      * @param hikari               HikariCP 池参数（spring.datasource.hikari.*）
      * @param druid                Druid 池参数（spring.datasource.druid.*）
      * @return 按连接池类型装配的 DataSource
@@ -65,7 +62,6 @@ public class ZoneDataSourceAutoConfiguration {
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean(DataSource.class)
     public DataSource zoneDataSource(DataSourceProperties dataSourceProperties,
-                                     ZoneDatabaseProperties zoneProperties,
                                      Hikari hikari,
                                      Druid druid) {
         if (dataSourceProperties.getUrl() == null || dataSourceProperties.getUrl().trim().isEmpty()) {
@@ -85,7 +81,6 @@ public class ZoneDataSourceAutoConfiguration {
         }
 
         Map<String, Object> info = new LinkedHashMap<>();
-        info.put("mode", zoneProperties.parsedMode());
         info.put("poolType", dataSource.getClass().getSimpleName());
         info.put("url", dataSourceProperties.getUrl());
         ZoneLog.info("ZoneDataSourceAutoConfiguration", "zoneDataSource",
@@ -94,7 +89,7 @@ public class ZoneDataSourceAutoConfiguration {
     }
 
     /**
-     * 构建 HikariCP 数据源（套用模式预设）。
+     * 构建 HikariCP 数据源。
      *
      * @param dataSourceProperties 官方连接信息
      * @param hikari               官方前缀 HikariCP 池参数
@@ -129,7 +124,7 @@ public class ZoneDataSourceAutoConfiguration {
     }
 
     /**
-     * 构建 Druid 数据源（套用模式预设，含 validationQuery 与可选 filter 别名）。
+     * 构建 Druid 数据源（含 validationQuery 与可选 filter 别名）。
      *
      * @param dataSourceProperties 官方连接信息
      * @param druid                官方前缀 Druid 池参数

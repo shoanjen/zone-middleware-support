@@ -27,10 +27,10 @@ class ZoneResultTest {
     }
 
     @Test
-    void okShouldCarryDataAndSuccessCode() {
+    void okShouldCarryDataAndSuccessCode200() {
         ZoneResult<User> result = ZoneResult.ok(new User("zone", 3));
         assertTrue(result.isSuccess());
-        assertEquals(ZoneResult.SUCCESS_CODE, result.getCode());
+        assertEquals("200", result.getCode(), "成功码应为 200");
         assertEquals("成功", result.getMessage());
         assertEquals("zone", result.getData().getName());
         assertTrue(result.getTimestamp() > 0);
@@ -40,14 +40,24 @@ class ZoneResultTest {
     void okWithoutDataShouldHaveNullData() {
         ZoneResult<Void> result = ZoneResult.ok();
         assertTrue(result.isSuccess());
+        assertEquals("200", result.getCode());
         assertNull(result.getData());
+    }
+
+    @Test
+    void okShouldSupportCustomMessage() {
+        ZoneResult<User> result = ZoneResult.ok(new User("zone", 3), "订单创建成功");
+
+        assertTrue(result.isSuccess());
+        assertEquals("200", result.getCode());
+        assertEquals("订单创建成功", result.getMessage());
     }
 
     @Test
     void failShouldUseErrorCodeAndMessage() {
         ZoneResult<Void> result = ZoneResult.fail(BusinessError.DATA_NOT_FOUND);
         assertFalse(result.isSuccess());
-        assertEquals("BIZ-4004", result.getCode());
+        assertEquals("BIZ-4004", result.getCode(), "失败码应为错误对象异常码");
         assertEquals("数据不存在", result.getMessage());
     }
 
@@ -68,7 +78,7 @@ class ZoneResultTest {
         ZoneResult<User> parsed = JSON.parseObject(json, type);
 
         assertTrue(parsed.isSuccess());
-        assertEquals(original.getCode(), parsed.getCode());
+        assertEquals("200", parsed.getCode());
         assertEquals(original.getMessage(), parsed.getMessage());
         assertEquals(original.getTimestamp(), parsed.getTimestamp());
         assertEquals("zone", parsed.getData().getName());

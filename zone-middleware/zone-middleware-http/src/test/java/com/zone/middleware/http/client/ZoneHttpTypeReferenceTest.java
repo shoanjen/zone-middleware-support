@@ -1,8 +1,9 @@
-package com.zone.middleware.http;
+package com.zone.middleware.http.client;
 
 import com.alibaba.fastjson2.TypeReference;
 import com.zone.middleware.common.result.ZoneResult;
 import com.zone.middleware.http.config.ZoneHttpProperties;
+import com.zone.middleware.http.config.ZoneOfficialHttpClientProperties;
 import com.sun.net.httpserver.HttpServer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -68,12 +69,13 @@ class ZoneHttpTypeReferenceTest {
 
     private ZoneHttpTemplate template() {
         return new ZoneHttpTemplate(java.net.http.HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(2)).build(), new ZoneHttpProperties(), null);
+                .connectTimeout(Duration.ofSeconds(2)).build(), new ZoneHttpProperties(),
+                new ZoneOfficialHttpClientProperties.Client(), null);
     }
 
-    private static final String SINGLE_ORDER_BODY = "{\"success\":true,\"code\":\"SUCCESS\","
+    private static final String SINGLE_ORDER_BODY = "{\"success\":true,\"code\":\"200\","
             + "\"message\":\"成功\",\"data\":{\"orderNo\":\"NO-1\",\"amount\":99},\"timestamp\":1}";
-    private static final String ORDER_LIST_BODY = "{\"success\":true,\"code\":\"SUCCESS\","
+    private static final String ORDER_LIST_BODY = "{\"success\":true,\"code\":\"200\","
             + "\"message\":\"成功\",\"data\":[{\"orderNo\":\"NO-1\",\"amount\":99},"
             + "{\"orderNo\":\"NO-2\",\"amount\":120}],\"timestamp\":1}";
 
@@ -112,7 +114,7 @@ class ZoneHttpTypeReferenceTest {
     void overloadsShouldForwardCustomHeaders() {
         server.createContext("/echo", exchange -> {
             String marker = exchange.getRequestHeaders().getFirst("X-Zone-Marker");
-            String out = "{\"success\":true,\"code\":\"SUCCESS\",\"message\":\""
+            String out = "{\"success\":true,\"code\":\"200\",\"message\":\""
                     + (marker == null ? "none" : marker) + "\",\"data\":{\"orderNo\":\"NO-1\",\"amount\":1},"
                     + "\"timestamp\":1}";
             byte[] outBytes = out.getBytes(StandardCharsets.UTF_8);

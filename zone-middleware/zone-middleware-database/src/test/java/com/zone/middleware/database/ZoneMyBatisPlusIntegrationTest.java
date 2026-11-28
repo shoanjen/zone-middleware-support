@@ -7,8 +7,11 @@ import com.zone.middleware.database.config.ZoneMyBatisPlusConfiguration;
 import com.zone.middleware.database.mapper.ZoneUser;
 import com.zone.middleware.database.mapper.ZoneUserMapper;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
@@ -24,18 +27,24 @@ class ZoneMyBatisPlusIntegrationTest {
             .withConfiguration(AutoConfigurations.of(
                     ZoneDataSourceAutoConfiguration.class,
                     ZoneMyBatisPlusConfiguration.class,
-                    com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration.class));
+                    com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration.class))
+            .withUserConfiguration(MapperScanConfig.class);
 
-    private ApplicationContextRunner withMapperPackage() {
+    /** Mapper 扫描走官方标准路径 @MapperScan（主包外场景；主包内 @Mapper 由官方自动扫描） */
+    @Configuration
+    @MapperScan("com.zone.middleware.database.mapper")
+    static class MapperScanConfig {
+    }
+
+    private ApplicationContextRunner withDataSource() {
         return runner.withPropertyValues(
                 "spring.datasource.url=jdbc:h2:mem:zonemybatis;DB_CLOSE_DELAY=-1",
-                "spring.datasource.username=sa",
-                "zone.middleware.db.mybatis.mapper-package=com.zone.middleware.database.mapper");
+                "spring.datasource.username=sa");
     }
 
     @Test
     void baseMapperCrudShouldWork() {
-        withMapperPackage().run(context -> {
+        withDataSource().run(context -> {
             DataSource dataSource = context.getBean(DataSource.class);
             new JdbcTemplate(dataSource).execute(
                     "CREATE TABLE IF NOT EXISTS zone_user (id BIGINT AUTO_INCREMENT PRIMARY KEY, "
@@ -61,7 +70,7 @@ class ZoneMyBatisPlusIntegrationTest {
 
     @Test
     void paginationShouldBeAssembledByDefault() {
-        withMapperPackage().run(context -> {
+        withDataSource().run(context -> {
             assertNotNull(context.getBean(MybatisPlusInterceptor.class));
 
             DataSource dataSource = context.getBean(DataSource.class);
@@ -86,10 +95,20 @@ class ZoneMyBatisPlusIntegrationTest {
     }
 
     @Test
-    void paginationCanBeDisabled() {
-        withMapperPackage().withPropertyValues(
-                        "zone.middleware.db.mybatis.pagination-enabled=false")
-                .run(context -> assertEquals(false,
-                        context.containsBean("zoneMybatisPlusInterceptor")));
+    void customInterceptorShouldTakeOver() {
+        withDataSource().withUserConfiguration(CustomInterceptorConfig.class).run(context -> {
+            // 上游自定义 MybatisPlusInterceptor Bean 生效，zone 默认分页拦截器让位
+            assertEquals(false, context.containsBean("zoneMybatisPlusInterceptor"));
+            assertEquals(true, context.containsBean("mybatisPlusInterceptor"));
+        });
+    }
+
+    /** 上游自定义拦截器（演示 @ConditionalOnMissingBean 让位路径） */
+    @Configuration
+    static class CustomInterceptorConfig {
+        @Bean
+        public MybatisPlusInterceptor mybatisPlusInterceptor() {
+            return new MybatisPlusInterceptor();
+        }
     }
 }

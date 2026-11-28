@@ -8,7 +8,7 @@
     <!-- 项目基本信息 -->
     <groupId>com.zone.middleware</groupId>
     <artifactId>zone-middleware-support</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <name>zone-middleware-support</name>
@@ -23,6 +23,9 @@
 
     <!-- 属性配置 -->
     <properties>
+        <!-- 全局版本唯一源（CI-friendly）：升版本只改此处，全部子模块（含 suite）自动跟随；
+             依赖 flatten-maven-plugin 将 ${revision} 解析为字面量后安装，下游方可正常解析 -->
+        <revision>1.0.0-SNAPSHOT</revision>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.boot.version>3.5.6</spring.boot.version>
@@ -124,6 +127,35 @@
 
     <!-- 构建配置 -->
     <build>
+        <plugins>
+            <!-- CI-friendly 版本支持：安装/部署前将 ${revision} 解析为字面量，
+                 保证本地仓库与远端仓库中的 POM 不含属性占位符（下游可解析） -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
         <pluginManagement>
             <plugins>
                 <plugin>

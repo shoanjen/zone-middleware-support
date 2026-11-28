@@ -9,7 +9,7 @@
     <parent>
         <groupId>com.zone.middleware</groupId>
         <artifactId>zone-middleware</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>${revision}</version>
     </parent>
 
     <!-- 模块基本信息 -->
